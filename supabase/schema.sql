@@ -220,3 +220,27 @@ do $$ begin
     alter publication supabase_realtime add table public.npm_efetivos;
   end if;
 end $$;
+
+-- =====================================================================
+--  PRESENÇA NO ROUBO DO ARSENAL
+--  O TEN-GEN marca quem participou de cada horário (11, 13, 15, 17, 19).
+--  efetivo_key: id do efetivo no rpcontrol, ou "npm-<id>" para quem veio do NPM.
+--  Status no painel: 3+ presenças = ativo · 1-2 = meio ativo · 0 = inativo.
+-- =====================================================================
+create table if not exists public.tg_presencas (
+  id            uuid primary key default gen_random_uuid(),
+  data          date not null,
+  horario       int  not null check (horario in (11,13,15,17,19)),
+  setor         text not null check (setor in ('Sul','Norte','Centro','Leste')),
+  efetivo_key   text not null,
+  efetivo_nome  text not null default '',
+  criado_em     timestamptz not null default now(),
+  unique (data, horario, efetivo_key)
+);
+create index if not exists tg_presencas_data_idx on public.tg_presencas (data);
+alter table public.tg_presencas enable row level security;
+drop policy if exists tg_presencas_dono on public.tg_presencas;
+create policy tg_presencas_dono on public.tg_presencas for all to authenticated
+  using (public.tg_sou_dono()) with check (public.tg_sou_dono());
+grant select, insert, update, delete on public.tg_presencas to authenticated;
+revoke all on public.tg_presencas from anon;

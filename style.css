@@ -247,3 +247,21 @@ nav#nav button svg{stroke-width:1.6}
 .toast{border-radius:6px;background:#161d17;color:var(--acc2);border:1px solid #c9a54a;font-weight:600}
 .logo-login{border-radius:10px}
 .progress{height:4px;border-radius:2px}
+
+/* Status de atividade e presença no Arsenal */
+.stt{flex:none;font:600 10px "Inter",system-ui;letter-spacing:.6px;text-transform:uppercase;border:1px solid;border-radius:3px;padding:4px 0;width:76px;text-align:center}
+.stt.ativo{color:#6fd398;border-color:#2f8f57;background:#2f8f5714}
+.stt.meio{color:#e8c25a;border-color:#a3842f;background:#a3842f14}
+.stt.inativo{color:#e48a7e;border-color:#8f3b31;background:#8f3b3114}
+.grp-st{display:inline-flex;gap:4px;margin-left:10px;vertical-align:middle}
+.grp-st i{font:600 11px "Inter",system-ui;font-style:normal;min-width:20px;text-align:center;padding:1px 5px;border-radius:3px;letter-spacing:0}
+.grp-st .ativo{color:#6fd398;background:#2f8f571f}.grp-st .meio{color:#e8c25a;background:#a3842f1f}.grp-st .inativo{color:#e48a7e;background:#8f3b311f}
+.horas{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.horas .chip{position:relative;padding:0}
+.feito{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:#6fd398}
+.presrow{display:flex;align-items:center;gap:12px;width:100%;background:none;border:0;border-top:1px solid var(--line);padding:11px 0;color:var(--txt);text-align:left;font:inherit;cursor:pointer}
+.presrow .who b{font-weight:600}
+.presrow .ck{flex:none;width:24px;height:24px;border:1.5px solid var(--line);border-radius:4px;display:grid;place-items:center}
+.presrow.on .ck{border-color:#5fbf7a;background:#5fbf7a26}
+.presrow.on .ck::after{content:"";width:10px;height:5px;border-left:2px solid #7fd39a;border-bottom:2px solid #7fd39a;transform:rotate(-45deg) translate(1px,-1px)}
+.presrow:active{transform:none;background:#ffffff06}

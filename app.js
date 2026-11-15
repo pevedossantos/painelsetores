@@ -43,16 +43,19 @@ async function fetchAll(table, order) {
   return out;
 }
 
-let S = { criterios: [], comandos: [], lancamentos: [], premios: [], npm: [] };
+let S = { criterios: [], comandos: [], lancamentos: [], premios: [], npm: [], pres: [] };
 let npmOk = true;
+let presOk = true;
+const HORARIOS = [11, 13, 15, 17, 19];
 const RP = { carregado: false, carregando: false, erro: "", membros: [], setores: [] };
 async function carregar() {
   const [cr, cm, la, pr] = await Promise.all([
     fetchAll("tg_criterios", "ordem"), fetchAll("tg_comandos", "criado_em"),
     fetchAll("tg_lancamentos", "data"), fetchAll("tg_premios", "fim")
   ]);
-  S = { criterios: cr, comandos: cm.map(fromCmd), lancamentos: la.map(fromL), premios: pr.map(fromP), npm: S.npm || [] };
+  S = { criterios: cr, comandos: cm.map(fromCmd), lancamentos: la.map(fromL), premios: pr.map(fromP), npm: S.npm || [], pres: S.pres || [] };
   await carregarNpm();
+  try { S.pres = await fetchAll("tg_presencas", "data"); presOk = true; } catch (e) { S.pres = []; presOk = false; }
   try { const { data } = await sb.from("tg_dono").select("avatar").maybeSingle(); AVATAR = (data && data.avatar) || ""; } catch (e) { }
 }
 async function carregarNpm() {
@@ -155,7 +158,7 @@ let tab = (location.hash || "").slice(1); let sub0 = "ranking";
 if (tab === "premios" || tab === "historico") { sub0 = tab; tab = "ranking"; }
 const TAB_OK = t => t === "perfil" || TABS.some(x => x[0] === t);
 if (!TAB_OK(tab)) tab = "ranking";
-const ui = { setSub: "setorizar", envio: {}, busca: "", rpSetor: "", abertos: {}, sub: sub0, fase: "carregando", periodo: "7d", de: "", ate: "", setorF: "", setorL: SETORES[0], data: today(), obs: "", form: {}, histSetor: "", ganhador: null, erroLogin: "" };
+const ui = { arsData: today(), arsHora: 19, arsSetor: "Sul", arsSel: new Set(), arsCtx: "", arsMudou: false, setSub: "setorizar", envio: {}, busca: "", rpSetor: "", abertos: {}, sub: sub0, fase: "carregando", periodo: "7d", de: "", ate: "", setorF: "", setorL: SETORES[0], data: today(), obs: "", form: {}, histSetor: "", ganhador: null, erroLogin: "" };
 function go(t) { if (t === tab) { window.scrollTo({ top: 0, behavior: "smooth" }); return; } tab = t; try { history.replaceState(null, "", "#" + t); } catch (e) { } render(); window.scrollTo(0, 0); }
 window.addEventListener("hashchange", () => { let t = location.hash.slice(1); if (t === "premios" || t === "historico") { ui.sub = t; t = "ranking"; } if (TAB_OK(t)) { tab = t; render(); } });
 
@@ -321,8 +324,8 @@ function vHistorico() {
 const fmtDH = s => { if (!s) return ""; const d = new Date(s); return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); };
 function vSetorizacao() {
   const pend = S.npm.filter(x => x.nivel === "setorizar" && !x.setor_destino);
-  const seg = `<div class="seg"><button class="${ui.setSub === "setorizar" ? "on" : ""}" data-ssub="setorizar">Setorizar${pend.length ? ` <span class="cnt">${pend.length}</span>` : ""}</button><button class="${ui.setSub === "efetivos" ? "on" : ""}" data-ssub="efetivos">Efetivos por setor</button></div>`;
-  return seg + (ui.setSub === "efetivos" ? vEfetivos() : vSetorizar(pend));
+  const seg = `<div class="seg"><button class="${ui.setSub === "setorizar" ? "on" : ""}" data-ssub="setorizar">Setorizar${pend.length ? ` <span class="cnt">${pend.length}</span>` : ""}</button><button class="${ui.setSub === "efetivos" ? "on" : ""}" data-ssub="efetivos">Efetivos</button><button class="${ui.setSub === "arsenal" ? "on" : ""}" data-ssub="arsenal">Arsenal</button></div>`;
+  return seg + (ui.setSub === "efetivos" ? vEfetivos() : ui.setSub === "arsenal" ? vArsenal() : vSetorizar(pend));
 }
 function contagemSetores() {
   if (!RP.carregado) return null;
@@ -359,6 +362,9 @@ function vSetorizar(pend) {
   env.slice(0, 50).forEach(x => { h += `<div class="hist"><div class="who"><b>${esc(x.qra)}</b><span>→ Setor ${esc(x.setor_destino)} · ${fmtDH(x.setorizado_em)}</span></div><button class="btn sm sec" data-desfazer="${x.id}">Desfazer</button></div>`; });
   return h + `</div>`;
 }
+function presencasDe(key) { const t = today(), de = addDays(t, -6); return S.pres.filter(p => p.efetivo_key === key && p.data >= de && p.data <= t).length; }
+function statusDe(key) { const n = presencasDe(key); return n >= 3 ? ["ativo", "Ativo", n] : n >= 1 ? ["meio", "Meio ativo", n] : ["inativo", "Inativo", n]; }
+const chaveEf = m => m.npm ? m.id : String(m.id);
 function gruposSetores(q) {
   // Só os setores avaliados (Sul, Norte, Centro, Leste); Especiais, NPM e sem setor ficam de fora.
   const grupos = RP.setores.filter(s => SETORES.some(n => n.toLowerCase() === String(s.nome).trim().toLowerCase())).map(s => ({ id: s.id, nome: "Setor " + s.nome, lista: [] }));
@@ -374,6 +380,49 @@ function gruposSetores(q) {
     g.lista.push({ id: "npm-" + x.id, nome: x.qra, discord: x.dc, patente: -1, funcao: null, npm: true, quando: x.setorizado_em });
   });
   return grupos;
+}
+function presCtx() { return ui.arsData + "|" + ui.arsHora + "|" + ui.arsSetor; }
+function carregarSelecao() {
+  const k = presCtx(); if (ui.arsCtx === k) return; ui.arsCtx = k;
+  ui.arsSel = new Set(S.pres.filter(p => p.data === ui.arsData && p.horario === ui.arsHora && p.setor === ui.arsSetor).map(p => p.efetivo_key));
+  ui.arsMudou = false;
+}
+function vArsenal() {
+  if (!presOk) return `<div class="card"><div class="empty-msg">A tabela de presença ainda não foi criada no banco.<br>Rode de novo o <b>supabase/schema.sql</b> no Supabase.</div></div>`;
+  if (!RP.carregado) {
+    if (!RP.carregando && !RP.erro) carregarRp().then(render);
+    return `<div class="card"><div class="empty-msg">${RP.erro ? "Não consegui ler os efetivos do rpcontrol." : "Carregando efetivos…"}</div></div>`;
+  }
+  carregarSelecao();
+  const g = gruposSetores("").find(x => x.nome === "Setor " + ui.arsSetor) || { lista: [] };
+  const lista = g.lista.slice().sort((a, b) => a.nome.localeCompare(b.nome));
+  const feitos = new Set(S.pres.filter(p => p.data === ui.arsData && p.setor === ui.arsSetor).map(p => p.horario));
+  let h = `<div class="card"><h2>Roubo do Arsenal</h2><label>Data</label><input type="date" id="arsData" class="data-full" value="${ui.arsData}">
+  <label>Horário</label><div class="chips big horas">${HORARIOS.map(x => `<button class="chip ${ui.arsHora === x ? "on" : ""}" data-arshora="${x}">${x}h${feitos.has(x) ? '<i class="feito"></i>' : ""}</button>`).join("")}</div>
+  <label>Setor</label>${chips(SETORES.map(s => [s, s]), ui.arsSetor, "arssetor", "big")}
+  <div class="sub" style="margin-top:8px"><i class="feito" style="position:static;display:inline-block;margin-right:4px"></i>horário com presença já salva neste setor</div></div>`;
+  h += `<div class="card"><div class="cmdhead"><h2 style="margin:0">Setor ${esc(ui.arsSetor)} · ${ui.arsHora}h</h2><span class="sub">${ui.arsSel.size}/${lista.length}</span></div>`;
+  if (!lista.length) h += `<div class="empty-msg">Nenhum efetivo neste setor.</div>`;
+  else h += `<div class="row" style="margin:6px 0 4px"><button class="btn sm sec" data-arstodos>Marcar todos</button><button class="btn sm sec" data-arslimpar>Limpar</button></div>`;
+  lista.forEach(m => {
+    const k = chaveEf(m), on = ui.arsSel.has(k), st = statusDe(k);
+    h += `<button class="presrow ${on ? "on" : ""}" data-arsef="${esc(k)}"><span class="ck"></span><span class="who"><b>${esc(m.nome)}</b><span>${st[2]} presença${st[2] === 1 ? "" : "s"} nos últimos 7 dias</span></span><span class="stt ${st[0]}">${st[1]}</span></button>`;
+  });
+  h += `</div><div class="acao"><div class="info"><small>${fmtD(ui.arsData).slice(0, 5)} · ${ui.arsHora}h · Setor ${esc(ui.arsSetor)}</small><b>${ui.arsSel.size} presente${ui.arsSel.size === 1 ? "" : "s"}</b></div><button class="btn" data-arssalvar ${ui.arsMudou ? "" : "disabled"}>Salvar</button></div>`;
+  return h;
+}
+async function salvarPresenca() {
+  const g = gruposSetores("").find(x => x.nome === "Setor " + ui.arsSetor) || { lista: [] };
+  const nomes = {}; g.lista.forEach(m => nomes[chaveEf(m)] = m.nome);
+  const { arsData: data, arsHora: horario, arsSetor: setor } = ui;
+  const rows = [...ui.arsSel].map(k => ({ id: uuid(), data, horario, setor, efetivo_key: k, efetivo_nome: nomes[k] || "" }));
+  S.pres = S.pres.filter(p => !(p.data === data && p.horario === horario && p.setor === setor)).concat(rows);
+  ui.arsMudou = false; render();
+  setStatus("Salvando…");
+  const del = await sb.from("tg_presencas").delete().eq("data", data).eq("horario", horario).eq("setor", setor);
+  if (del.error) return run(Promise.resolve(del));
+  if (rows.length) { if (!(await run(sb.from("tg_presencas").insert(rows)))) return; } else setStatus("✓ Salvo no banco", "#5fbf7a");
+  toast(`✓ Presença salva · ${setor} ${horario}h · ${rows.length} presente${rows.length === 1 ? "" : "s"}`);
 }
 function vEfetivos() {
   if (!RP.carregado) {
@@ -393,10 +442,11 @@ function vEfetivos() {
     if (q && !g.lista.length) return;
     const aberto = ui.abertos[g.id] || !!q || !!ui.rpSetor;
     g.lista.sort((a, b) => (ordemF[a.funcao] ?? 9) - (ordemF[b.funcao] ?? 9) || b.patente - a.patente || a.nome.localeCompare(b.nome));
-    h += `<div class="card"><button class="grp" data-grp="${g.id}"><span>${esc(g.nome)}</span><span class="grp-n">${g.lista.length}<i class="chev ${aberto ? "up" : ""}"></i></span></button>`;
+    const cnt = { ativo: 0, meio: 0, inativo: 0 }; g.lista.forEach(m => cnt[statusDe(chaveEf(m))[0]]++);
+    h += `<div class="card"><button class="grp" data-grp="${g.id}"><span>${esc(g.nome)}<small class="grp-st"><i class="ativo">${cnt.ativo}</i><i class="meio">${cnt.meio}</i><i class="inativo">${cnt.inativo}</i></small></span><span class="grp-n">${g.lista.length}<i class="chev ${aberto ? "up" : ""}"></i></span></button>`;
     if (aberto) {
       if (!g.lista.length) h += `<div class="empty-msg">Nenhum efetivo.</div>`;
-      g.lista.forEach(m => { h += `<div class="ef"><span class="pat ${m.npm ? "npm" : ""}">${m.npm ? "NPM" : (PAT_SIGLA[m.patente] || "")}</span><div class="who"><b>${esc(m.nome)}</b>${m.npm ? `<span>Setorizado pelo NPM · ${fmtDH(m.quando)}</span>` : m.discord ? `<span>${esc(m.discord)}</span>` : ""}</div>${m.funcao ? `<span class="fun">${FUN_SIGLA[m.funcao]}</span>` : ""}</div>`; });
+      g.lista.forEach(m => { const st = statusDe(chaveEf(m)); h += `<div class="ef"><span class="stt ${st[0]}">${st[1]}</span><div class="who"><b>${esc(m.nome)}</b><span>${st[2]} presença${st[2] === 1 ? "" : "s"} no Arsenal (7 dias)${m.npm ? " · veio do NPM" : ""}</span></div>${m.funcao ? `<span class="fun">${FUN_SIGLA[m.funcao]}</span>` : ""}</div>`; });
     }
     h += `</div>`;
   });
@@ -450,7 +500,7 @@ function render() {
   if (ui.fase !== "pronto") { root.innerHTML = `<div class="loading">Carregando…</div>`; return; }
   const st = document.getElementById("status"); const stTxt = st ? st.textContent : "✓ Conectado", stCor = st ? st.style.color : "#5fbf7a";
   const y = window.scrollY;
-  root.innerHTML = header() + `<main id="app" class="${tab === "lancar" ? "com-barra" : ""}">${{ ranking: vRanking, lancar: vLancar, setorizacao: vSetorizacao, ajustes: vAjustes, perfil: vPerfil }[tab]()}</main>`;
+  root.innerHTML = header() + `<main id="app" class="${tab === "lancar" || (tab === "setorizacao" && ui.setSub === "arsenal") ? "com-barra" : ""}">${{ ranking: vRanking, lancar: vLancar, setorizacao: vSetorizacao, ajustes: vAjustes, perfil: vPerfil }[tab]()}</main>`;
   if (render.mesmaAba === tab) window.scrollTo(0, y); render.mesmaAba = tab;
   setStatus(stTxt, stCor);
 }
@@ -564,6 +614,12 @@ document.addEventListener("click", async e => {
     catch (er) { el.focus(); el.select(); try { document.execCommand("copy"); toast("✓ Resumo copiado"); closeModal(); } catch (e2) { toast("Selecione o texto e copie"); } }
     return;
   }
+  if (d.arshora) { ui.arsHora = Number(d.arshora); return render(); }
+  if (d.arssetor) { ui.arsSetor = d.arssetor; return render(); }
+  if (d.arsef) { ui.arsSel.has(d.arsef) ? ui.arsSel.delete(d.arsef) : ui.arsSel.add(d.arsef); ui.arsMudou = true; return render(); }
+  if (d.arstodos !== undefined) { const g = gruposSetores("").find(x => x.nome === "Setor " + ui.arsSetor); if (g) g.lista.forEach(m => ui.arsSel.add(chaveEf(m))); ui.arsMudou = true; return render(); }
+  if (d.arslimpar !== undefined) { ui.arsSel.clear(); ui.arsMudou = true; return render(); }
+  if (d.arssalvar !== undefined) return salvarPresenca();
   if (d.ssub) { ui.setSub = d.ssub; render(); window.scrollTo(0, 0); return; }
   if (d.envset) { const [id, s] = d.envset.split("|"); ui.envio[id] = ui.envio[id] === s ? "" : s; return render(); }
   if (d.enviar) {
@@ -620,6 +676,7 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches && e.target.matches(".efin,#fObs")) e.target.blur(); });
 document.addEventListener("change", e => {
+  if (e.target.id === "arsData") { ui.arsData = e.target.value || today(); return render(); }
   if (e.target.id === "fotoInput") return trocarFoto(e.target.files[0]);
   if (e.target.id === "rDe" || e.target.id === "rAte") { readForm(); render(); }
   if (e.target.id === "fData" || e.target.id === "fObs") readForm();
@@ -656,7 +713,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "17";
+const VERSAO = "18";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;
