@@ -154,8 +154,8 @@ function header() {
   <nav id="nav">${TABS.map(([k, n]) => `<button class="${k === tab ? "on" : ""}" data-tab="${k}"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${n}</button>`).join("")}</nav>`;
 }
 function vLogin() {
-  return `<div class="login"><div class="avatar"></div><h1>SR ZEZO</h1><div class="rank-t">TEN-GEN / SETORES</div><div class="unit">Exército de Solano</div>
-  <form class="card" id="loginForm" style="margin-top:20px"><label>Nome no jogo</label><input id="lNome" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required>
+  return `<div class="login"><img class="logo-login" src="logo.jpg" alt="Tenente General · Coordenação de Setores e Comandos">
+  <form class="card" id="loginForm"><label>Nome no jogo</label><input id="lNome" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required>
   <label>Senha</label><input id="lSenha" type="password" autocomplete="current-password" enterkeyhint="go" required>
   <button class="btn" type="submit">Entrar</button><div class="err" id="lErr">${esc(ui.erroLogin)}</div>
   <div class="sub">Use o mesmo nome e senha do painel de efetivo (rpcontrol).</div></form></div>`;
@@ -513,7 +513,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "11";
+const VERSAO = "12";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;

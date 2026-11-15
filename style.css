@@ -159,3 +159,6 @@ input[type=date]::-webkit-date-and-time-value{text-align:center}
 .pat{font:700 10px system-ui;letter-spacing:.3px;color:var(--acc2);background:#c8a64b1a;border:1px solid #c8a64b44;border-radius:6px;padding:4px 0;width:58px;text-align:center;flex:none}
 .fun{font:700 11px system-ui;background:var(--acc);color:#1b1607;border-radius:6px;padding:3px 7px;flex:none}
 input[type=search]{-webkit-appearance:none;appearance:none}
+
+/* Logo do Tenente General na tela de entrada */
+.logo-login{display:block;width:min(78vw,320px);height:auto;margin:6px auto 18px;border-radius:22px;box-shadow:0 10px 40px #000a}
