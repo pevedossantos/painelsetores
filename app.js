@@ -231,7 +231,7 @@ function vAjustes() {
   S.criterios.forEach(c => { h += `<div class="crit"><div>${esc(c.nome)}${c.tipo === "efetivos" ? ' <span class="sub">(por efetivo)</span>' : ""} <span class="sub">· ${c.escopo === "setor" ? "setor" : "comando"}</span></div><input type="number" inputmode="numeric" data-cpts="${esc(c.id)}" value="${c.pontos}"></div>`; });
   h += `<div class="sub" style="margin-top:8px">Vale para os próximos lançamentos; os já feitos mantêm o valor.</div></div>
   <div class="card"><h2>Backup</h2><button class="btn sec" data-export>Copiar backup</button><label>Importar backup (cole aqui o backup do painel antigo ou deste)</label><textarea id="impTxt"></textarea><button class="btn sec" data-import>Importar backup</button></div>
-  <div class="card"><button class="btn sec" data-sair>Sair da conta</button><button class="btn danger" data-reset>Apagar lançamentos e prêmios</button></div>`;
+  <div class="card"><div class="sub" style="text-align:center">Versão do painel: ${VERSAO}</div><button class="btn sec" data-sair>Sair da conta</button><button class="btn danger" data-reset>Apagar lançamentos e prêmios</button></div>`;
   return h;
 }
 
@@ -416,5 +416,11 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => { }));
+const VERSAO = "5";
+if ("serviceWorker" in navigator) {
+  // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
+  let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (tinhaControle && !recarregou) { recarregou = true; location.reload(); } });
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(r => r.update()).catch(() => { }));
+}
 boot();
