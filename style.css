@@ -172,3 +172,14 @@ input[type=search]{-webkit-appearance:none;appearance:none}
 .pstats div{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
 .pstats b{display:block;font-size:22px;color:var(--acc2)}.pstats span{font-size:12px;color:var(--mut)}
 .pat.npm{color:#18210f;background:#a9c46a;border-color:#a9c46a}
+
+/* Botões de setor com contagem */
+.setch .chip{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.15;padding:8px 4px}
+.setch .chip small{font-size:11px;font-weight:600;color:var(--mut)}
+.setch .chip.menor{border-color:#a9c46a}
+.setch .chip.menor small{color:#a9c46a}
+.setch .chip.on small{color:#2b3519}
+/* Resumo para o Discord */
+.btn.discord{display:flex;align-items:center;justify-content:center;gap:10px;background:#5865f2;color:#fff;margin-top:0}
+.btn.discord svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
+.resumo-txt{min-height:300px;font-size:13px!important;line-height:1.45;white-space:pre-wrap}

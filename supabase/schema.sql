@@ -211,3 +211,12 @@ create policy npm_tg_ler on public.npm_efetivos for select to authenticated usin
 grant select on public.npm_efetivos to authenticated;
 revoke all on public.npm_efetivos from anon;
 -- (As permissões da equipe do NPM ficam no script do painel do NPM.)
+
+-- Atualização em tempo real: a lista de setorização do TEN-GEN muda sozinha
+-- quando o NPM marca alguém como "setorizar".
+do $$ begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+     and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'npm_efetivos') then
+    alter publication supabase_realtime add table public.npm_efetivos;
+  end if;
+end $$;

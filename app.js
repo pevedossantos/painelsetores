@@ -60,6 +60,21 @@ async function carregarNpm() {
   if (error) { npmOk = false; S.npm = []; return; }
   npmOk = true; S.npm = data;
 }
+let canalNpm = null;
+function ouvirNpm() {
+  if (canalNpm || !sb.channel) return;
+  let t = null;
+  canalNpm = sb.channel("tg-npm").on("postgres_changes", { event: "*", schema: "public", table: "npm_efetivos" }, p => {
+    clearTimeout(t);
+    t = setTimeout(async () => {
+      const antes = new Set(S.npm.filter(x => x.nivel === "setorizar" && !x.setor_destino).map(x => x.id));
+      await carregarNpm();
+      const novos = S.npm.filter(x => x.nivel === "setorizar" && !x.setor_destino && !antes.has(x.id));
+      if (novos.length) toast(novos.length === 1 ? `🔔 ${novos[0].qra} está aguardando setorização` : `🔔 ${novos.length} efetivos aguardando setorização`);
+      if (ui.fase === "pronto") render();
+    }, 400);
+  }).subscribe();
+}
 async function carregarRp() {
   RP.carregando = true; RP.erro = "";
   try {
@@ -173,6 +188,39 @@ function vErro() { return `<div class="login"><div class="card"><h2>Erro ao carr
 function rankRow(x, i, max) {
   return `<div class="rank"><div class="pos ${i < 3 && x.pts > 0 ? "p" + (i + 1) : ""}">${i + 1}</div><div class="who"><b>${esc(x.qra)}</b><span>${esc(x.setor)} · ${esc(x.funcao)}${x.pos ? ` · <span class="posv">+${x.pos}</span>` : ""}${x.neg ? ` <span class="neg">${x.neg}</span>` : ""}</span><div class="bar"><i style="width:${Math.max(0, x.pts) / max * 100}%"></i></div></div><div class="pts ${x.pts < 0 ? "neg" : ""}">${x.pts}<small>pts</small></div></div>`;
 }
+function textoResumo() {
+  const t = today(), de = addDays(t, -6), r = ranking(de, t, "").filter(x => x.pts !== 0), rs = rankSetores(de, t);
+  const med = ["🥇", "🥈", "🥉"]; const fd = s => fmtD(s).slice(0, 5);
+  let s = `**📊 RESUMO SEMANAL · SETORES**\n**Exército de Solano** · ${fd(de)} a ${fd(t)}\n\n**🏆 Ranking dos comandos**\n`;
+  if (!r.length) s += "Nenhum ponto lançado na semana.\n";
+  r.slice(0, 10).forEach((x, i) => s += `${med[i] || `**${i + 1}.**`} ${x.qra} — Setor ${x.setor} · ${x.funcao} — **${x.pts} pts**\n`);
+  s += `\n**🛡️ Setores**\n`;
+  rs.forEach((x, i) => s += `${i + 1}. Setor ${x.setor} — **${x.pts} pts**\n`);
+  const c = ciclo(), lider = ranking(c.ini, c.fim, "")[0];
+  const ult = S.premios.slice().sort((a, b) => b.fim.localeCompare(a.fim))[0];
+  if (lider && lider.pts > 0) s += `\n**⭐ Liderando o ciclo:** ${lider.qra} (${lider.pts} pts) · ${c.dias} de ${CICLO} dias`;
+  if (ult) s += `\n**🏅 Último prêmio:** ${ult.qra} — ${ult.premio} (${fd(ult.inicio)} a ${fd(ult.fim)})`;
+  s += `\n\n— SR ZEZO · TEN-GEN / SETORES`;
+  return s;
+}
+function textoSetorizacao() {
+  const t = today(), de = addDays(t, -6), fd = s => fmtD(s).slice(0, 5);
+  const env = S.npm.filter(x => x.setor_destino && x.setorizado_em && iso(x.setorizado_em) >= de && iso(x.setorizado_em) <= t)
+    .sort((a, b) => String(a.setorizado_em).localeCompare(String(b.setorizado_em)));
+  const pend = S.npm.filter(x => x.nivel === "setorizar" && !x.setor_destino).length;
+  let s = `**🪖 SETORIZAÇÃO DA SEMANA**\n**Exército de Solano** · ${fd(de)} a ${fd(t)}\n\n**🎖️ Guerreiros setorizados**\n`;
+  if (!env.length) s += "Nenhum guerreiro setorizado nesta semana.\n";
+  SETORES.forEach(st => {
+    const l = env.filter(x => x.setor_destino === st); if (!l.length) return;
+    s += `\n**Setor ${st}** (${l.length})\n`;
+    l.forEach(x => s += `• ${x.qra}\n`);
+  });
+  s += `\n**📈 Total da semana: ${env.length} guerreiro${env.length === 1 ? "" : "s"}**\n`;
+  s += SETORES.map(st => `${st} ${env.filter(x => x.setor_destino === st).length}`).join(" · ") + "\n";
+  if (pend) s += `⏳ Aguardando setorização: ${pend}\n`;
+  s += `\n— SR ZEZO · TEN-GEN / SETORES`;
+  return s;
+}
 function vRankingLista() {
   if (!S.comandos.length && !S.lancamentos.length) return semCmd;
   const [de, ate] = range(ui.periodo); const r = ranking(de, ate, ui.setorF), max = Math.max(1, ...r.map(x => x.pts));
@@ -180,7 +228,9 @@ function vRankingLista() {
   let h = `<div class="card"><h2>Período</h2>${chips([["7d", "Últimos 7 dias"], ["mes", "Mês"], ["custom", "Escolher datas"]], ui.periodo, "per")}`;
   if (ui.periodo === "custom") h += `<div class="grid2"><div><label>De</label><input type="date" id="rDe" value="${de}"></div><div><label>Até</label><input type="date" id="rAte" value="${ate}"></div></div>`;
   else h += `<div class="sub" style="margin-top:8px">${fmtD(de)} a ${fmtD(ate)}</div>`;
-  h += `<h2 style="margin-top:14px">Setor</h2>${chips(SETCH, ui.setorF, "setf")}</div><div class="card"><h2>Ranking dos comandos</h2>`;
+  h += `<h2 style="margin-top:14px">Setor</h2>${chips(SETCH, ui.setorF, "setf")}</div>
+  <button class="btn discord" data-resumo><svg viewBox="0 0 24 24"><path d="M8 7h8M8 11h8M8 15h5"/><rect x="4" y="3" width="16" height="18" rx="3"/></svg>Resumo da semana para o Discord</button>
+  <div class="card" style="margin-top:12px"><h2>Ranking dos comandos</h2>`;
   if (!r.length) h += `<div class="empty-msg">Nenhum comando neste setor.</div>`;
   r.forEach((x, i) => h += rankRow(x, i, max));
   h += `</div>`;
@@ -260,15 +310,32 @@ function vSetorizacao() {
   const seg = `<div class="seg"><button class="${ui.setSub === "setorizar" ? "on" : ""}" data-ssub="setorizar">Setorizar${pend.length ? ` <span class="cnt">${pend.length}</span>` : ""}</button><button class="${ui.setSub === "efetivos" ? "on" : ""}" data-ssub="efetivos">Efetivos por setor</button></div>`;
   return seg + (ui.setSub === "efetivos" ? vEfetivos() : vSetorizar(pend));
 }
+function contagemSetores() {
+  if (!RP.carregado) return null;
+  const c = {}; gruposSetores("").forEach(g => c[g.nome.replace("Setor ", "").trim().toLowerCase()] = g.lista.length);
+  return c;
+}
+function chipsSetor(id, sel, cont) {
+  const nums = cont ? SETORES.map(s => cont[s.toLowerCase()] ?? 0) : null;
+  const min = nums ? Math.min(...nums) : null;
+  return `<div class="chips big setch">${SETORES.map((s, i) => {
+    const n = nums ? nums[i] : null, on = sel === s;
+    return `<button class="chip ${on ? "on" : ""} ${n !== null && n === min ? "menor" : ""}" data-envset="${id}|${s}"><span>${s}</span>${n !== null ? `<small>${n} efetivo${n === 1 ? "" : "s"}</small>` : ""}</button>`;
+  }).join("")}</div>`;
+}
 function vSetorizar(pend) {
   if (!npmOk) return `<div class="card"><div class="empty-msg">A ligação com o NPM ainda não foi criada no banco.<br>Rode de novo o <b>supabase/schema.sql</b> no Supabase.</div></div>`;
-  let h = `<div class="card"><h2>Aguardando setorização (${pend.length})</h2>`;
+  let h = `<button class="btn discord" data-resumo="setor"><svg viewBox="0 0 24 24"><path d="M8 7h8M8 11h8M8 15h5"/><rect x="4" y="3" width="16" height="18" rx="3"/></svg>Resumo da semana para o Discord</button>
+  <div class="card" style="margin-top:12px"><h2>Aguardando setorização (${pend.length})</h2>`;
   if (!pend.length) h += `<div class="empty-msg">Nenhum efetivo aguardando.<br><span class="sub">Quando o NPM marcar alguém como <b>Setorizar</b>, ele aparece aqui.</span></div>`;
+  if (pend.length && !RP.carregado && !RP.carregando && !RP.erro) carregarRp().then(render);
+  const cont = contagemSetores();
+  if (pend.length) h += `<div class="sub" style="margin:-4px 0 8px">${cont ? "Número de efetivos em cada setor · <b style=\"color:#a9c46a\">verde</b> = setor com menos gente" : "Carregando quantos efetivos cada setor tem…"}</div>`;
   pend.slice().sort((a, b) => String(a.atualizado_em).localeCompare(String(b.atualizado_em))).forEach(x => {
     const sel = ui.envio[x.id] || "";
     h += `<div class="npmcard"><div class="cmdhead"><div style="min-width:0"><b>${esc(x.qra)}</b><div class="sub">${[x.dc ? "DC: " + esc(x.dc) : "", x.data_entrada ? "Entrada " + fmtD(String(x.data_entrada).slice(0, 10)) : "", x.recrutado_por ? "Recrutado por " + esc(x.recrutado_por) : ""].filter(Boolean).join(" · ")}</div></div><span class="tag">NPM · ${fmtDH(x.atualizado_em)}</span></div>
     ${x.obs ? `<div class="sub" style="margin-bottom:8px">${esc(x.obs)}</div>` : ""}
-    <label>Enviar para o setor</label>${chips(SETORES.map(s => [x.id + "|" + s, s]), sel ? x.id + "|" + sel : "", "envset", "big")}
+    <label>Enviar para o setor</label>${chipsSetor(x.id, sel, cont)}
     <button class="btn" data-enviar="${x.id}" ${sel ? "" : "disabled"}>${sel ? "Enviar para o Setor " + esc(sel) : "Escolha o setor"}</button></div>`;
   });
   h += `</div>`;
@@ -278,16 +345,10 @@ function vSetorizar(pend) {
   env.slice(0, 50).forEach(x => { h += `<div class="hist"><div class="who"><b>${esc(x.qra)}</b><span>→ Setor ${esc(x.setor_destino)} · ${fmtDH(x.setorizado_em)}</span></div><button class="btn sm sec" data-desfazer="${x.id}">Desfazer</button></div>`; });
   return h + `</div>`;
 }
-function vEfetivos() {
-  if (!RP.carregado) {
-    if (!RP.carregando && !RP.erro) carregarRp().then(render);
-    if (RP.erro) return `<div class="card"><div class="empty-msg">Não consegui ler os efetivos do rpcontrol.<br><span class="sub">${esc(RP.erro)}</span></div><button class="btn sec" data-rprecarregar>Tentar de novo</button></div>`;
-    return `<div class="card"><div class="empty-msg">Carregando efetivos do rpcontrol…</div></div>`;
-  }
+function gruposSetores(q) {
   // Só os setores avaliados (Sul, Norte, Centro, Leste); Especiais, NPM e sem setor ficam de fora.
   const grupos = RP.setores.filter(s => SETORES.some(n => n.toLowerCase() === String(s.nome).trim().toLowerCase())).map(s => ({ id: s.id, nome: "Setor " + s.nome, lista: [] }));
   const porId = {}; grupos.forEach(g => porId[g.id] = g);
-  const q = slugUsuario(ui.busca).replace(/\./g, " ");
   const passa = (nome, dc) => !q || slugUsuario(nome).replace(/\./g, " ").includes(q) || String(dc || "").toLowerCase().includes(q);
   RP.membros.forEach(m => { if (!passa(m.nome, m.discord)) return; const g = porId[m.setor_id]; if (g) g.lista.push(m); });
   // Efetivos que você setorizou pelo NPM entram no setor de destino (sem mexer no rpcontrol).
@@ -298,6 +359,16 @@ function vEfetivos() {
     const k = slugUsuario(x.qra); if (RP.membros.some(m => m.setor_id === g.id && slugUsuario(m.nome) === k)) return;
     g.lista.push({ id: "npm-" + x.id, nome: x.qra, discord: x.dc, patente: -1, funcao: null, npm: true, quando: x.setorizado_em });
   });
+  return grupos;
+}
+function vEfetivos() {
+  if (!RP.carregado) {
+    if (!RP.carregando && !RP.erro) carregarRp().then(render);
+    if (RP.erro) return `<div class="card"><div class="empty-msg">Não consegui ler os efetivos do rpcontrol.<br><span class="sub">${esc(RP.erro)}</span></div><button class="btn sec" data-rprecarregar>Tentar de novo</button></div>`;
+    return `<div class="card"><div class="empty-msg">Carregando efetivos do rpcontrol…</div></div>`;
+  }
+  const q = slugUsuario(ui.busca).replace(/\./g, " ");
+  const grupos = gruposSetores(q);
   const ordemF = { "1CMD": 0, "2CMD": 1, "1AUX": 2, "2AUX": 3 };
   const total = grupos.reduce((t, g) => t + g.lista.length, 0);
   let h = `<div class="card"><input id="rpBusca" type="search" placeholder="Buscar efetivo por nome ou DC" value="${esc(ui.busca)}" enterkeyhint="search" autocapitalize="none" autocorrect="off">
@@ -465,6 +536,19 @@ document.addEventListener("click", async e => {
   if (d.st) { readForm(); const [k, c, n] = d.st.split("|"); setF(k, c, Math.max(0, fval(k, c) + Number(n))); return render(); }
   if (d.lancar !== undefined) return lancar();
   if (d.semfoto !== undefined) { AVATAR = ""; render(); if (await run(sb.rpc("tg_salvar_avatar", { p_avatar: "" }))) toast("✓ Usando a foto padrão"); return; }
+  if (d.resumo !== undefined) {
+    const txt = d.resumo === "setor" ? textoSetorizacao() : textoResumo();
+    openModal(`<div class="mhead"><h2>Resumo para o Discord</h2><button class="mx" data-mclose aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="sub" style="margin-bottom:8px">${d.resumo === "setor" ? "Guerreiros setorizados nos últimos 7 dias." : "Ranking dos últimos 7 dias."} Copie e cole no canal da base.</div><textarea id="resumoTxt" readonly class="resumo-txt">${esc(txt)}</textarea>
+    <button class="btn" data-copiar>Copiar resumo</button>`);
+    return;
+  }
+  if (d.copiar !== undefined) {
+    const el = document.getElementById("resumoTxt");
+    try { await navigator.clipboard.writeText(el.value); toast("✓ Resumo copiado — é só colar no Discord"); closeModal(); }
+    catch (er) { el.focus(); el.select(); try { document.execCommand("copy"); toast("✓ Resumo copiado"); closeModal(); } catch (e2) { toast("Selecione o texto e copie"); } }
+    return;
+  }
   if (d.ssub) { ui.setSub = d.ssub; render(); window.scrollTo(0, 0); return; }
   if (d.envset) { const [id, s] = d.envset.split("|"); ui.envio[id] = ui.envio[id] === s ? "" : s; return render(); }
   if (d.enviar) {
@@ -542,6 +626,7 @@ async function entrar() {
     if (error) throw error;
     if (data !== "dono") { ui.fase = "negado"; return render(); }
     await carregar(); ui.fase = "pronto"; render(); setStatus("✓ Conectado", "#5fbf7a");
+    ouvirNpm();
   } catch (e) { ui.fase = "erro"; ui.erro = e.message || String(e); render(); }
 }
 async function boot() {
@@ -556,7 +641,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "14";
+const VERSAO = "15";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;
