@@ -21,9 +21,14 @@ Usa o **mesmo Supabase do rpcontrol**, com tabelas próprias (`tg_…`), e roda 
 1. No painel antigo: **Ajustes → Copiar backup**.
 2. No painel novo: **Ajustes → Importar backup** → cole → **Importar backup**.
 
+## Instalar como app no celular
+- **iPhone (Safari):** abra o link → botão Compartilhar → **Adicionar à Tela de Início**.
+- **Android (Chrome):** abra o link → menu ⋮ → **Instalar app** / **Adicionar à tela inicial**.
+
 ## Arquivos
 - `index.html`, `style.css`, `app.js`: o painel.
 - `config.js`: URL e chave publishable do Supabase (pública por natureza).
+- `sw.js`: faz o painel abrir rápido e funcionar como app (os dados sempre vêm do banco).
 - `supabase/schema.sql`: tabelas e regras de segurança (só o dono lê e grava).
 
 ## Trocar o dono (se precisar)

@@ -104,9 +104,16 @@ function ciclo() {
 
 /* ===== Estado de tela ===== */
 const TABS = [["ranking", "Ranking"], ["lancar", "Lançar"], ["premios", "Prêmios"], ["historico", "Histórico"], ["ajustes", "Ajustes"]];
+const ICON = {
+  ranking: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/>',
+  lancar: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  premios: '<circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/>',
+  historico: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+  ajustes: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'
+};
 let tab = (location.hash || "").slice(1); if (!TABS.some(t => t[0] === tab)) tab = "ranking";
 const ui = { fase: "carregando", periodo: "7d", de: "", ate: "", setorF: "", setorL: SETORES[0], data: today(), obs: "", form: {}, histSetor: "", ganhador: null, erroLogin: "" };
-function go(t) { tab = t; try { history.replaceState(null, "", "#" + t); } catch (e) { } render(); window.scrollTo(0, 0); }
+function go(t) { if (t === tab) { window.scrollTo({ top: 0, behavior: "smooth" }); return; } tab = t; try { history.replaceState(null, "", "#" + t); } catch (e) { } render(); window.scrollTo(0, 0); }
 window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (TABS.some(x => x[0] === t)) { tab = t; render(); } });
 
 function chips(list, cur, attr, cls) { return `<div class="chips ${cls || ""}">${list.map(([v, n]) => `<button class="chip ${v === cur ? "on" : ""}" data-${attr}="${esc(v)}">${esc(n)}</button>`).join("")}</div>`; }
@@ -117,13 +124,13 @@ const semCmd = `<div class="card"><div class="empty-msg">Nenhum comando cadastra
 function header() {
   return `<header><div class="top"><div class="avatar"></div>
   <div style="min-width:0"><h1>SR ZEZO</h1><div class="rank-t">TEN-GEN / SETORES</div><div class="unit">Exército de Solano</div><div id="status"></div></div>
-  <button class="hbtn" data-cadastro>+ Comando</button></div>
-  <nav id="nav">${TABS.map(([k, n]) => `<button class="${k === tab ? "on" : ""}" data-tab="${k}">${n}</button>`).join("")}</nav></header>`;
+  <button class="hbtn" data-cadastro aria-label="Cadastrar comando">+</button></div></header>
+  <nav id="nav">${TABS.map(([k, n]) => `<button class="${k === tab ? "on" : ""}" data-tab="${k}"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${n}</button>`).join("")}</nav>`;
 }
 function vLogin() {
   return `<div class="login"><div class="avatar"></div><h1>SR ZEZO</h1><div class="rank-t">TEN-GEN / SETORES</div><div class="unit">Exército de Solano</div>
-  <form class="card" id="loginForm" style="margin-top:20px"><label>Nome no jogo</label><input id="lNome" autocomplete="username" required>
-  <label>Senha</label><input id="lSenha" type="password" autocomplete="current-password" required>
+  <form class="card" id="loginForm" style="margin-top:20px"><label>Nome no jogo</label><input id="lNome" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required>
+  <label>Senha</label><input id="lSenha" type="password" autocomplete="current-password" enterkeyhint="go" required>
   <button class="btn" type="submit">Entrar</button><div class="err" id="lErr">${esc(ui.erroLogin)}</div>
   <div class="sub">Use o mesmo nome e senha do painel de efetivo (rpcontrol).</div></form></div>`;
 }
@@ -162,7 +169,7 @@ function critRows(key, list) {
     const v = fval(key, cr.id), pt = (cr.pontos > 0 ? "+" : "") + cr.pontos;
     h += `<div class="crow"><div class="cn">${esc(cr.nome)}<small>${cr.tipo === "efetivos" ? pt + " por efetivo (só acima de 3)" : cr.tipo === "count" ? pt + " cada" : pt}</small></div>`;
     if (cr.tipo === "check") h += `<button class="tog ${v ? "on" : ""}" data-tog="${key}|${cr.id}">${v ? "✓ Sim" : "Não"}</button>`;
-    else if (cr.tipo === "efetivos") h += `<input class="efin" type="number" min="0" inputmode="numeric" placeholder="nº" data-efet="${key}|${cr.id}" value="${v || ""}">`;
+    else if (cr.tipo === "efetivos") h += `<input class="efin" type="number" min="0" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" placeholder="nº" data-efet="${key}|${cr.id}" value="${v || ""}">`;
     else h += `<div class="step"><button data-st="${key}|${cr.id}|-1">−</button><span>${v}</span><button data-st="${key}|${cr.id}|1">+</button></div>`;
     h += `</div>`;
   }); return h;
@@ -170,15 +177,17 @@ function critRows(key, list) {
 function vLancar() {
   const s = ui.setorL, sk = SKEY(s);
   let h = `<div class="card"><h2>Setor</h2>${chips(SETORES.map(x => [x, x]), s, "setl", "big")}
-  <div class="grid2"><div><label>Data</label><input type="date" id="fData" value="${ui.data}"></div><div><label>Evento / obs.</label><input id="fObs" placeholder="Ex.: Arsenal 19h" value="${esc(ui.obs)}"></div></div></div>`;
+  <div class="grid2"><div><label>Data</label><input type="date" id="fData" value="${ui.data}"></div><div><label>Evento / obs.</label><input id="fObs" placeholder="Ex.: Arsenal 19h" enterkeyhint="done" value="${esc(ui.obs)}"></div></div></div>`;
   const sc = critsDe("setor");
   if (sc.length) { const t = total(sk, "setor"); h += `<div class="card"><h2>Pontos do setor ${esc(s)}</h2><div class="cmdcard" style="margin-top:0"><div class="cmdhead"><div><b>Setor ${esc(s)}</b></div><div class="tot ${t < 0 ? "neg" : ""}" id="tot-${sk}">${t > 0 ? "+" : ""}${t}</div></div>${critRows(sk, sc)}</div></div>`; }
   const cs = cmdsDoSetor(s);
   h += `<div class="card"><h2>Comandos do setor ${esc(s)}</h2>`;
   if (!cs.length) h += `<div class="empty-msg">Nenhum comando cadastrado no setor ${esc(s)}.</div><button class="btn sec" data-cadastro>+ Cadastrar comando</button>`;
   cs.forEach(c => { const t = total(c.id, "cmd"); h += `<div class="cmdcard"><div class="cmdhead"><div><b>${esc(c.qra)}</b> <span class="sub">· ${esc(c.funcao)}</span></div><div class="tot ${t < 0 ? "neg" : ""}" id="tot-${c.id}">${t > 0 ? "+" : ""}${t}</div></div>${critRows(c.id, critsDe("cmd"))}</div>`; });
-  return h + `<button class="btn" data-lancar>Lançar setor ${esc(s)}</button></div>`;
+  const tg = totalGeral();
+  return h + `</div><div class="acao"><div class="info"><small>Setor ${esc(s)} · total a lançar</small><b id="totGeral">${tg > 0 ? "+" : ""}${tg} pts</b></div><button class="btn" data-lancar>Lançar</button></div>`;
 }
+function totalGeral() { const s = ui.setorL; return total(SKEY(s), "setor") + cmdsDoSetor(s).reduce((t, c) => t + total(c.id, "cmd"), 0); }
 
 function vPremios() {
   const c = ciclo(); const r = ranking(c.ini, c.fim, ""); const falta = Math.max(0, CICLO - c.dias);
@@ -212,7 +221,7 @@ function vHistorico() {
 
 function vAjustes() {
   let h = `<div class="card"><h2>Pontos por critério</h2>`;
-  S.criterios.forEach(c => { h += `<div class="crit"><div>${esc(c.nome)}${c.tipo === "efetivos" ? ' <span class="sub">(por efetivo)</span>' : ""} <span class="sub">· ${c.escopo === "setor" ? "setor" : "comando"}</span></div><input type="number" data-cpts="${esc(c.id)}" value="${c.pontos}"></div>`; });
+  S.criterios.forEach(c => { h += `<div class="crit"><div>${esc(c.nome)}${c.tipo === "efetivos" ? ' <span class="sub">(por efetivo)</span>' : ""} <span class="sub">· ${c.escopo === "setor" ? "setor" : "comando"}</span></div><input type="number" inputmode="numeric" data-cpts="${esc(c.id)}" value="${c.pontos}"></div>`; });
   h += `<div class="sub" style="margin-top:8px">Vale para os próximos lançamentos; os já feitos mantêm o valor.</div></div>
   <div class="card"><h2>Backup</h2><button class="btn sec" data-export>Copiar backup</button><label>Importar backup (cole aqui o backup do painel antigo ou deste)</label><textarea id="impTxt"></textarea><button class="btn sec" data-import>Importar backup</button></div>
   <div class="card"><button class="btn sec" data-sair>Sair da conta</button><button class="btn danger" data-reset>Apagar lançamentos e prêmios</button></div>`;
@@ -228,7 +237,9 @@ function render() {
   if (ui.fase === "erro") { root.innerHTML = vErro(); return; }
   if (ui.fase !== "pronto") { root.innerHTML = `<div class="loading">Carregando…</div>`; return; }
   const st = document.getElementById("status"); const stTxt = st ? st.textContent : "✓ Conectado", stCor = st ? st.style.color : "#5fbf7a";
-  root.innerHTML = header() + `<main id="app">${{ ranking: vRanking, lancar: vLancar, premios: vPremios, historico: vHistorico, ajustes: vAjustes }[tab]()}</main>`;
+  const y = window.scrollY;
+  root.innerHTML = header() + `<main id="app" class="${tab === "lancar" ? "com-barra" : ""}">${{ ranking: vRanking, lancar: vLancar, premios: vPremios, historico: vHistorico, ajustes: vAjustes }[tab]()}</main>`;
+  if (render.mesmaAba === tab) window.scrollTo(0, y); render.mesmaAba = tab;
   setStatus(stTxt, stCor);
 }
 
@@ -259,7 +270,7 @@ function readForm() {
   if (g("rDe")) ui.de = g("rDe").value; if (g("rAte")) ui.ate = g("rAte").value;
 }
 function setF(k, c, v) { (ui.form[k] = ui.form[k] || {})[c] = v; }
-function updTot(k) { const el = document.getElementById("tot-" + k); if (el) { const t = total(k, k.startsWith("S-") ? "setor" : "cmd"); el.textContent = (t > 0 ? "+" : "") + t; el.classList.toggle("neg", t < 0); } }
+function updTot(k) { const el = document.getElementById("tot-" + k); if (el) { const t = total(k, k.startsWith("S-") ? "setor" : "cmd"); el.textContent = (t > 0 ? "+" : "") + t; el.classList.toggle("neg", t < 0); } const g = document.getElementById("totGeral"); if (g) { const t = totalGeral(); g.textContent = (t > 0 ? "+" : "") + t + " pts"; } }
 
 async function lancar() {
   readForm(); const s = ui.setorL, sk = SKEY(s), cs = cmdsDoSetor(s), novos = [];
@@ -361,6 +372,7 @@ document.addEventListener("input", e => {
     clearTimeout(ptsTimers[c.id]); ptsTimers[c.id] = setTimeout(() => run(sb.from("tg_criterios").update({ pontos: c.pontos }).eq("id", c.id)), 700);
   }
 });
+document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches && e.target.matches(".efin,#fObs")) e.target.blur(); });
 document.addEventListener("change", e => {
   if (e.target.id === "rDe" || e.target.id === "rAte") { readForm(); render(); }
   if (e.target.id === "fData" || e.target.id === "fObs") readForm();
@@ -389,4 +401,12 @@ async function boot() {
   const { data: { session } } = await sb.auth.getSession();
   if (session) entrar(); else { ui.fase = "login"; render(); }
 }
+let saiuEm = 0;
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden) { saiuEm = Date.now(); return; }
+  if (ui.fase !== "pronto" || Date.now() - saiuEm < 30000) return;
+  const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
+  try { await carregar(); render(); } catch (e) { } aviso.remove();
+});
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => { }));
 boot();
