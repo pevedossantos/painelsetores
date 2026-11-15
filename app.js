@@ -180,7 +180,7 @@ function critRows(key, list) {
 function vLancar() {
   const s = ui.setorL, sk = SKEY(s);
   let h = `<div class="card"><h2>Setor</h2>${chips(SETORES.map(x => [x, x]), s, "setl", "big")}
-  <div class="grid2"><div><label>Data</label><input type="date" id="fData" value="${ui.data}"></div><div><label>Evento / obs.</label><input id="fObs" placeholder="Ex.: Arsenal 19h" enterkeyhint="done" value="${esc(ui.obs)}"></div></div></div>`;
+  <label>Data</label><input type="date" id="fData" class="data-full" value="${ui.data}"></div>`;
   const sc = critsDe("setor");
   if (sc.length) { const t = total(sk, "setor"); h += `<div class="card"><h2>Pontos do setor ${esc(s)}</h2><div class="cmdcard" style="margin-top:0"><div class="cmdhead"><div><b>Setor ${esc(s)}</b></div><div class="tot ${t < 0 ? "neg" : ""}" id="tot-${sk}">${t > 0 ? "+" : ""}${t}</div></div>${critRows(sk, sc)}</div></div>`; }
   const cs = cmdsDoSetor(s);
@@ -260,9 +260,9 @@ const cad = { id: null, setor: SETORES[0], funcao: FUNCOES[0] };
 function cadastroModal(id) {
   cad.id = id || null; const c = id ? cmdById(id) : { qra: "", dc: "", setor: ui.setorL || SETORES[0], funcao: FUNCOES[0] };
   cad.setor = c.setor; cad.funcao = c.funcao;
-  let h = `<h2>${id ? "Editar comando" : "Cadastrar comando"}</h2><label>QRA</label><input id="cQra" value="${esc(c.qra)}" placeholder="Nome no jogo"><label>DC</label><input id="cDc" value="${esc(c.dc)}" placeholder="Discord">
+  let h = `<div class="mhead"><h2>${id ? "Editar comando" : "Cadastrar comando"}</h2><button class="mx" data-mclose aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><label>QRA</label><input id="cQra" value="${esc(c.qra)}" placeholder="Nome no jogo"><label>DC</label><input id="cDc" value="${esc(c.dc)}" placeholder="Discord">
   <label>Setor</label>${chips(SETORES.map(s => [s, s]), c.setor, "cset", "big")}<label>Função</label>${chips(FUNCOES.map(f => [f, f]), c.funcao, "cfun", "big")}
-  <div class="grid2"><button class="btn sec" data-mclose>Fechar</button><button class="btn" data-csave>${id ? "Salvar" : "Cadastrar"}</button></div>`;
+  <button class="btn" data-csave>${id ? "Salvar alterações" : "Cadastrar"}</button>`;
   if (S.comandos.length) {
     h += `<h2 style="margin-top:20px">Cadastrados (${S.comandos.length})</h2>`;
     SETORES.forEach(s => cmdsDoSetor(s).forEach(x => { h += `<div class="hist"><div class="who"><b>${esc(x.qra)}</b><span>${esc(x.setor)} · ${esc(x.funcao)}${x.dc ? " · DC: " + esc(x.dc) : ""}</span></div><button class="btn sm sec" data-cedit="${x.id}">Editar</button><button class="x" data-cdel="${x.id}">×</button></div>`; }));
@@ -416,7 +416,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "5";
+const VERSAO = "6";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;

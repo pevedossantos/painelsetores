@@ -127,3 +127,12 @@ h1{font-size:20px;font-weight:800;letter-spacing:.8px;line-height:1.2;margin-bot
 .seg{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:12px}
 .seg button{flex:1;min-height:42px;border:0;border-radius:10px;background:none;color:var(--mut);font:700 14px system-ui;cursor:pointer}
 .seg button.on{background:var(--acc);color:#1b1607}
+
+/* Data ocupando a linha toda (o campo de data do iPhone é largo) */
+.data-full{display:block;width:100%;min-width:0;-webkit-appearance:none;appearance:none;text-align:left}
+input[type=date]::-webkit-date-and-time-value{text-align:left}
+/* Cabeçalho do modal com X para fechar */
+.mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.mhead h2{margin:0}
+.mx{width:40px;height:40px;flex:none;border-radius:50%;border:1px solid var(--line);background:var(--card2);display:grid;place-items:center;cursor:pointer}
+.mx svg{width:20px;height:20px;stroke:var(--txt);stroke-width:2.4;stroke-linecap:round;fill:none}
