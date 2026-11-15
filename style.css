@@ -132,7 +132,7 @@ h1{font-size:20px;font-weight:800;letter-spacing:.8px;line-height:1.2;margin-bot
 .data-full{display:block;width:100%;min-width:0;-webkit-appearance:none;appearance:none;text-align:center;font-weight:600}
 input[type=date]::-webkit-date-and-time-value{text-align:center}
 .data-full::-webkit-datetime-edit{display:inline-flex;justify-content:center;width:100%}
-label.data-lbl{text-align:center}
+
 /* Cabeçalho do modal com X para fechar */
 .mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
 .mhead h2{margin:0}
