@@ -221,6 +221,20 @@ function textoSetorizacao() {
   s += `\n— SR ZEZO · TEN-GEN / SETORES`;
   return s;
 }
+function textoEfetivos() {
+  const grupos = gruposSetores("").filter(g => !ui.rpSetor || g.id === ui.rpSetor);
+  const total = grupos.reduce((t, g) => t + g.lista.length, 0);
+  let s = `**🛡️ EFETIVOS POR SETOR · ${fmtD(today())}**\n**Exército de Solano**\n`;
+  grupos.forEach(g => {
+    s += `\n**${g.nome}** — ${g.lista.length}\n`;
+    if (!g.lista.length) s += "Nenhum efetivo.\n";
+    g.lista.slice().sort((a, b) => a.nome.localeCompare(b.nome)).forEach(m => s += `• ${m.nome}\n`);
+  });
+  s += `\n**📊 Total: ${total} efetivo${total === 1 ? "" : "s"}**\n`;
+  if (grupos.length > 1) s += grupos.map(g => `${g.nome.replace("Setor ", "")} ${g.lista.length}`).join(" · ") + "\n";
+  s += `\n— SR ZEZO · TEN-GEN / SETORES`;
+  return s;
+}
 function vRankingLista() {
   if (!S.comandos.length && !S.lancamentos.length) return semCmd;
   const [de, ate] = range(ui.periodo); const r = ranking(de, ate, ui.setorF), max = Math.max(1, ...r.map(x => x.pts));
@@ -373,7 +387,8 @@ function vEfetivos() {
   const total = grupos.reduce((t, g) => t + g.lista.length, 0);
   let h = `<div class="card"><input id="rpBusca" type="search" placeholder="Buscar efetivo por nome ou DC" value="${esc(ui.busca)}" enterkeyhint="search" autocapitalize="none" autocorrect="off">
   <div class="resumo">${grupos.map(g => `<button class="rs ${ui.rpSetor === g.id ? "on" : ""}" data-rpset="${g.id}"><b>${g.lista.length}</b><span>${esc(g.nome.replace("Setor ", ""))}</span></button>`).join("")}</div>
-  <div class="sub" style="text-align:center;margin-top:8px">${total} efetivo(s)${q ? " encontrados" : ""} · rpcontrol + setorizados pelo NPM <button class="lnk" data-rprecarregar>atualizar</button></div></div>`;
+  <div class="sub" style="text-align:center;margin-top:8px">${total} efetivo(s)${q ? " encontrados" : ""} · rpcontrol + setorizados pelo NPM <button class="lnk" data-rprecarregar>atualizar</button></div></div>
+  <button class="btn discord" data-resumo="efetivos"><svg viewBox="0 0 24 24"><path d="M8 7h8M8 11h8M8 15h5"/><rect x="4" y="3" width="16" height="18" rx="3"/></svg>Relatório de efetivos para o Discord</button><div style="height:12px"></div>`;
   grupos.filter(g => !ui.rpSetor || g.id === ui.rpSetor).forEach(g => {
     if (q && !g.lista.length) return;
     const aberto = ui.abertos[g.id] || !!q || !!ui.rpSetor;
@@ -537,9 +552,9 @@ document.addEventListener("click", async e => {
   if (d.lancar !== undefined) return lancar();
   if (d.semfoto !== undefined) { AVATAR = ""; render(); if (await run(sb.rpc("tg_salvar_avatar", { p_avatar: "" }))) toast("✓ Usando a foto padrão"); return; }
   if (d.resumo !== undefined) {
-    const txt = d.resumo === "setor" ? textoSetorizacao() : textoResumo();
+    const txt = d.resumo === "setor" ? textoSetorizacao() : d.resumo === "efetivos" ? textoEfetivos() : textoResumo();
     openModal(`<div class="mhead"><h2>Resumo para o Discord</h2><button class="mx" data-mclose aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
-    <div class="sub" style="margin-bottom:8px">${d.resumo === "setor" ? "Guerreiros setorizados nos últimos 7 dias." : "Ranking dos últimos 7 dias."} Copie e cole no canal da base.</div><textarea id="resumoTxt" readonly class="resumo-txt">${esc(txt)}</textarea>
+    <div class="sub" style="margin-bottom:8px">${d.resumo === "setor" ? "Guerreiros setorizados nos últimos 7 dias." : d.resumo === "efetivos" ? (ui.rpSetor ? "Só o setor selecionado." : "Todos os setores.") : "Ranking dos últimos 7 dias."} Copie e cole no canal da base.</div><textarea id="resumoTxt" readonly class="resumo-txt">${esc(txt)}</textarea>
     <button class="btn" data-copiar>Copiar resumo</button>`);
     return;
   }
@@ -641,7 +656,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "16";
+const VERSAO = "17";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;
