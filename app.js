@@ -180,7 +180,7 @@ function critRows(key, list) {
 function vLancar() {
   const s = ui.setorL, sk = SKEY(s);
   let h = `<div class="card"><h2>Setor</h2>${chips(SETORES.map(x => [x, x]), s, "setl", "big")}
-  <label>Data</label><input type="date" id="fData" class="data-full" value="${ui.data}"></div>`;
+  <label class="data-lbl">Data</label><input type="date" id="fData" class="data-full" value="${ui.data}"></div>`;
   const sc = critsDe("setor");
   if (sc.length) { const t = total(sk, "setor"); h += `<div class="card"><h2>Pontos do setor ${esc(s)}</h2><div class="cmdcard" style="margin-top:0"><div class="cmdhead"><div><b>Setor ${esc(s)}</b></div><div class="tot ${t < 0 ? "neg" : ""}" id="tot-${sk}">${t > 0 ? "+" : ""}${t}</div></div>${critRows(sk, sc)}</div></div>`; }
   const cs = cmdsDoSetor(s);
@@ -416,7 +416,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "6";
+const VERSAO = "7";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;
