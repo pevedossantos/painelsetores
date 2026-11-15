@@ -112,3 +112,18 @@ main.com-barra{padding-bottom:calc(var(--nav-h) + var(--sab) + 96px)}
 .login{padding-top:var(--sat)}
 .carregando-dados{position:fixed;top:calc(8px + var(--sat));left:50%;transform:translateX(-50%);background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;color:var(--mut);z-index:20}
 @media (min-width:760px){nav#nav{left:50%;transform:translateX(-50%);max-width:760px;border-radius:16px 16px 0 0;border:1px solid var(--line)}}
+
+/* ===== Cabeçalho com mais respiro (fora do desfoque do topo do iPhone) ===== */
+header{padding:calc(var(--sat) + 26px) 16px 16px;background:#111712}
+header .top{gap:14px}
+.avatar{width:58px;height:58px;border-width:2px}
+h1{font-size:20px;font-weight:800;letter-spacing:.8px;line-height:1.2;margin-bottom:2px}
+.rank-t{font-size:12px}.unit{font-size:12px;margin-top:1px}
+#status{font-size:11px;margin-top:3px}
+.hbtn{width:48px;height:48px;border-radius:14px;box-shadow:0 4px 14px #0006}
+.hbtn svg{width:24px;height:24px;stroke:#1b1607;stroke-width:3;stroke-linecap:round;fill:none}
+.hbtn:active{transform:none;filter:brightness(.92)}
+/* Seletor Ranking / Prêmios / Histórico */
+.seg{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:12px}
+.seg button{flex:1;min-height:42px;border:0;border-radius:10px;background:none;color:var(--mut);font:700 14px system-ui;cursor:pointer}
+.seg button.on{background:var(--acc);color:#1b1607}

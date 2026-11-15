@@ -103,7 +103,8 @@ function ciclo() {
 }
 
 /* ===== Estado de tela ===== */
-const TABS = [["ranking", "Ranking"], ["lancar", "Lançar"], ["premios", "Prêmios"], ["historico", "Histórico"], ["ajustes", "Ajustes"]];
+const TABS = [["ranking", "Ranking"], ["lancar", "Lançar"], ["ajustes", "Ajustes"]];
+const SUBS = [["ranking", "Ranking"], ["premios", "Prêmios"], ["historico", "Histórico"]];
 const ICON = {
   ranking: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/>',
   lancar: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
@@ -111,10 +112,12 @@ const ICON = {
   historico: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
   ajustes: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'
 };
-let tab = (location.hash || "").slice(1); if (!TABS.some(t => t[0] === tab)) tab = "ranking";
-const ui = { fase: "carregando", periodo: "7d", de: "", ate: "", setorF: "", setorL: SETORES[0], data: today(), obs: "", form: {}, histSetor: "", ganhador: null, erroLogin: "" };
+let tab = (location.hash || "").slice(1); let sub0 = "ranking";
+if (tab === "premios" || tab === "historico") { sub0 = tab; tab = "ranking"; }
+if (!TABS.some(t => t[0] === tab)) tab = "ranking";
+const ui = { sub: sub0, fase: "carregando", periodo: "7d", de: "", ate: "", setorF: "", setorL: SETORES[0], data: today(), obs: "", form: {}, histSetor: "", ganhador: null, erroLogin: "" };
 function go(t) { if (t === tab) { window.scrollTo({ top: 0, behavior: "smooth" }); return; } tab = t; try { history.replaceState(null, "", "#" + t); } catch (e) { } render(); window.scrollTo(0, 0); }
-window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (TABS.some(x => x[0] === t)) { tab = t; render(); } });
+window.addEventListener("hashchange", () => { let t = location.hash.slice(1); if (t === "premios" || t === "historico") { ui.sub = t; t = "ranking"; } if (TABS.some(x => x[0] === t)) { tab = t; render(); } });
 
 function chips(list, cur, attr, cls) { return `<div class="chips ${cls || ""}">${list.map(([v, n]) => `<button class="chip ${v === cur ? "on" : ""}" data-${attr}="${esc(v)}">${esc(n)}</button>`).join("")}</div>`; }
 const SETCH = [["", "Todos"], ...SETORES.map(s => [s, s])];
@@ -124,7 +127,7 @@ const semCmd = `<div class="card"><div class="empty-msg">Nenhum comando cadastra
 function header() {
   return `<header><div class="top"><div class="avatar"></div>
   <div style="min-width:0"><h1>SR ZEZO</h1><div class="rank-t">TEN-GEN / SETORES</div><div class="unit">Exército de Solano</div><div id="status"></div></div>
-  <button class="hbtn" data-cadastro aria-label="Cadastrar comando">+</button></div></header>
+  <button class="hbtn" data-cadastro aria-label="Cadastrar comando"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div></header>
   <nav id="nav">${TABS.map(([k, n]) => `<button class="${k === tab ? "on" : ""}" data-tab="${k}"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${n}</button>`).join("")}</nav>`;
 }
 function vLogin() {
@@ -143,7 +146,7 @@ function vErro() { return `<div class="login"><div class="card"><h2>Erro ao carr
 function rankRow(x, i, max) {
   return `<div class="rank"><div class="pos ${i < 3 && x.pts > 0 ? "p" + (i + 1) : ""}">${i + 1}</div><div class="who"><b>${esc(x.qra)}</b><span>${esc(x.setor)} · ${esc(x.funcao)}${x.pos ? ` · <span class="posv">+${x.pos}</span>` : ""}${x.neg ? ` <span class="neg">${x.neg}</span>` : ""}</span><div class="bar"><i style="width:${Math.max(0, x.pts) / max * 100}%"></i></div></div><div class="pts ${x.pts < 0 ? "neg" : ""}">${x.pts}<small>pts</small></div></div>`;
 }
-function vRanking() {
+function vRankingLista() {
   if (!S.comandos.length && !S.lancamentos.length) return semCmd;
   const [de, ate] = range(ui.periodo); const r = ranking(de, ate, ui.setorF), max = Math.max(1, ...r.map(x => x.pts));
   const rs = rankSetores(de, ate), maxS = Math.max(1, ...rs.map(x => x.pts));
@@ -189,6 +192,10 @@ function vLancar() {
 }
 function totalGeral() { const s = ui.setorL; return total(SKEY(s), "setor") + cmdsDoSetor(s).reduce((t, c) => t + total(c.id, "cmd"), 0); }
 
+function vRanking() {
+  const seg = `<div class="seg">${SUBS.map(([k, n]) => `<button class="${k === ui.sub ? "on" : ""}" data-sub="${k}">${n}</button>`).join("")}</div>`;
+  return seg + ({ ranking: vRankingLista, premios: vPremios, historico: vHistorico }[ui.sub] || vRankingLista)();
+}
 function vPremios() {
   const c = ciclo(); const r = ranking(c.ini, c.fim, ""); const falta = Math.max(0, CICLO - c.dias);
   let h = `<div class="card"><h2>Ciclo atual</h2><div class="sub">De ${fmtD(c.ini)} até hoje · ${c.dias} de ${CICLO} dias</div><div class="progress"><i style="width:${Math.min(100, c.dias / CICLO * 100)}%"></i></div>`;
@@ -238,7 +245,7 @@ function render() {
   if (ui.fase !== "pronto") { root.innerHTML = `<div class="loading">Carregando…</div>`; return; }
   const st = document.getElementById("status"); const stTxt = st ? st.textContent : "✓ Conectado", stCor = st ? st.style.color : "#5fbf7a";
   const y = window.scrollY;
-  root.innerHTML = header() + `<main id="app" class="${tab === "lancar" ? "com-barra" : ""}">${{ ranking: vRanking, lancar: vLancar, premios: vPremios, historico: vHistorico, ajustes: vAjustes }[tab]()}</main>`;
+  root.innerHTML = header() + `<main id="app" class="${tab === "lancar" ? "com-barra" : ""}">${{ ranking: vRanking, lancar: vLancar, ajustes: vAjustes }[tab]()}</main>`;
   if (render.mesmaAba === tab) window.scrollTo(0, y); render.mesmaAba = tab;
   setStatus(stTxt, stCor);
 }
@@ -326,7 +333,8 @@ async function importar(o) {
 
 document.addEventListener("click", async e => {
   const t = e.target.closest("button"); if (!t) return; const d = t.dataset;
-  if (d.tab) return go(d.tab);
+  if (d.tab) { if (d.tab === "ranking" && tab === "ranking" && ui.sub !== "ranking") { ui.sub = "ranking"; render(); window.scrollTo(0, 0); return; } return go(d.tab); }
+  if (d.sub) { ui.sub = d.sub; try { history.replaceState(null, "", "#" + (d.sub === "ranking" ? "ranking" : d.sub)); } catch (e) { } render(); window.scrollTo(0, 0); return; }
   if (d.cadastro !== undefined) return cadastroModal();
   if (d.sair !== undefined) { await sb.auth.signOut(); location.reload(); return; }
   if (d.recarregar !== undefined) return entrar();
