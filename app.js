@@ -53,6 +53,7 @@ async function carregar() {
   ]);
   S = { criterios: cr, comandos: cm.map(fromCmd), lancamentos: la.map(fromL), premios: pr.map(fromP), npm: S.npm || [] };
   await carregarNpm();
+  try { const { data } = await sb.from("tg_dono").select("avatar").maybeSingle(); AVATAR = (data && data.avatar) || ""; } catch (e) { }
 }
 async function carregarNpm() {
   const { data, error } = await sb.from("npm_efetivos").select("*").order("atualizado_em").range(0, 4999);
@@ -137,19 +138,22 @@ const ICON = {
 };
 let tab = (location.hash || "").slice(1); let sub0 = "ranking";
 if (tab === "premios" || tab === "historico") { sub0 = tab; tab = "ranking"; }
-if (!TABS.some(t => t[0] === tab)) tab = "ranking";
+const TAB_OK = t => t === "perfil" || TABS.some(x => x[0] === t);
+if (!TAB_OK(tab)) tab = "ranking";
 const ui = { setSub: "setorizar", envio: {}, busca: "", rpSetor: "", abertos: {}, sub: sub0, fase: "carregando", periodo: "7d", de: "", ate: "", setorF: "", setorL: SETORES[0], data: today(), obs: "", form: {}, histSetor: "", ganhador: null, erroLogin: "" };
 function go(t) { if (t === tab) { window.scrollTo({ top: 0, behavior: "smooth" }); return; } tab = t; try { history.replaceState(null, "", "#" + t); } catch (e) { } render(); window.scrollTo(0, 0); }
-window.addEventListener("hashchange", () => { let t = location.hash.slice(1); if (t === "premios" || t === "historico") { ui.sub = t; t = "ranking"; } if (TABS.some(x => x[0] === t)) { tab = t; render(); } });
+window.addEventListener("hashchange", () => { let t = location.hash.slice(1); if (t === "premios" || t === "historico") { ui.sub = t; t = "ranking"; } if (TAB_OK(t)) { tab = t; render(); } });
 
 function chips(list, cur, attr, cls) { return `<div class="chips ${cls || ""}">${list.map(([v, n]) => `<button class="chip ${v === cur ? "on" : ""}" data-${attr}="${esc(v)}">${esc(n)}</button>`).join("")}</div>`; }
 const SETCH = [["", "Todos"], ...SETORES.map(s => [s, s])];
 const semCmd = `<div class="card"><div class="empty-msg">Nenhum comando cadastrado ainda.<br>Toque em <b>+ Comando</b> no topo.</div></div>`;
 
 /* ===== Telas ===== */
+let AVATAR = "";
+const avatarStyle = () => AVATAR ? `style="background-image:url('${AVATAR}')"` : "";
 function header() {
-  return `<header><div class="top"><div class="avatar"></div>
-  <div style="min-width:0"><h1>SR ZEZO</h1><div class="rank-t">TEN-GEN / SETORES</div><div class="unit">Exército de Solano</div><div id="status"></div></div>
+  return `<header><div class="top"><button class="hperfil" data-tab="perfil" aria-label="Abrir perfil"><div class="avatar" ${avatarStyle()}></div>
+  <div style="min-width:0"><h1>SR ZEZO</h1><div class="rank-t">TEN-GEN / SETORES</div><div class="unit">Exército de Solano</div><div id="status"></div></div></button>
   <button class="hbtn" data-cadastro aria-label="Cadastrar comando"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div></header>
   <nav id="nav">${TABS.map(([k, n]) => `<button class="${k === tab ? "on" : ""}" data-tab="${k}"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${n}</button>`).join("")}</nav>`;
 }
@@ -304,6 +308,34 @@ function vEfetivos() {
   return h;
 }
 
+function vPerfil() {
+  const c = ciclo(); const pend = S.npm.filter(x => x.nivel === "setorizar" && !x.setor_destino).length;
+  const lider = ranking(c.ini, c.fim, "")[0];
+  return `<div class="card perfil"><div class="avatar grande" ${avatarStyle()}></div>
+  <h2 style="text-align:center;margin:12px 0 2px;font-size:18px">SR ZEZO</h2><div class="rank-t" style="text-align:center">TEN-GEN / SETORES</div><div class="unit" style="text-align:center">Exército de Solano · Coordenação de Setores e Comandos</div>
+  <label class="btn" style="display:block;text-align:center;line-height:50px;padding:0;margin-top:16px">Trocar foto<input type="file" id="fotoInput" accept="image/*" hidden></label>
+  ${AVATAR ? `<button class="btn sec" data-semfoto>Usar a foto padrão</button>` : ""}</div>
+  <div class="card"><h2>Resumo</h2><div class="pstats">
+    <div><b>${S.comandos.length}</b><span>Comandos</span></div>
+    <div><b>${S.lancamentos.length}</b><span>Lançamentos</span></div>
+    <div><b>${S.premios.length}</b><span>Prêmios</span></div>
+    <div><b>${pend}</b><span>Aguardando setor</span></div></div>
+    <div class="sub" style="margin-top:10px;text-align:center">Ciclo atual: ${c.dias} de ${CICLO} dias${lider && lider.pts > 0 ? ` · liderando: <b style="color:var(--acc2)">${esc(lider.qra)}</b> (${lider.pts} pts)` : ""}</div></div>
+  <div class="card"><div class="sub" style="text-align:center">Versão do painel: ${VERSAO}</div><button class="btn sec" data-sair>Sair da conta</button></div>`;
+}
+async function trocarFoto(file) {
+  if (!file || !/^image\//.test(file.type)) return toast("Escolha uma imagem");
+  setStatus("Enviando foto…");
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); }).catch(() => null);
+  if (!img) return toast("Não consegui abrir essa imagem");
+  const lado = Math.min(img.naturalWidth, img.naturalHeight), alvo = 320;
+  const cv = document.createElement("canvas"); cv.width = cv.height = alvo;
+  cv.getContext("2d").drawImage(img, (img.naturalWidth - lado) / 2, (img.naturalHeight - lado) / 2, lado, lado, 0, 0, alvo, alvo);
+  const dataUrl = cv.toDataURL("image/jpeg", 0.85); URL.revokeObjectURL(img.src);
+  AVATAR = dataUrl; render();
+  if (await run(sb.rpc("tg_salvar_avatar", { p_avatar: dataUrl }))) toast("✓ Foto atualizada");
+}
+
 function vAjustes() {
   let h = `<div class="card"><h2>Pontos por critério</h2>`;
   S.criterios.forEach(c => { h += `<div class="crit"><div>${esc(c.nome)}${c.tipo === "efetivos" ? ' <span class="sub">(por efetivo)</span>' : ""} <span class="sub">· ${c.escopo === "setor" ? "setor" : "comando"}</span></div><input type="number" inputmode="numeric" data-cpts="${esc(c.id)}" value="${c.pontos}"></div>`; });
@@ -323,7 +355,7 @@ function render() {
   if (ui.fase !== "pronto") { root.innerHTML = `<div class="loading">Carregando…</div>`; return; }
   const st = document.getElementById("status"); const stTxt = st ? st.textContent : "✓ Conectado", stCor = st ? st.style.color : "#5fbf7a";
   const y = window.scrollY;
-  root.innerHTML = header() + `<main id="app" class="${tab === "lancar" ? "com-barra" : ""}">${{ ranking: vRanking, lancar: vLancar, setorizacao: vSetorizacao, ajustes: vAjustes }[tab]()}</main>`;
+  root.innerHTML = header() + `<main id="app" class="${tab === "lancar" ? "com-barra" : ""}">${{ ranking: vRanking, lancar: vLancar, setorizacao: vSetorizacao, ajustes: vAjustes, perfil: vPerfil }[tab]()}</main>`;
   if (render.mesmaAba === tab) window.scrollTo(0, y); render.mesmaAba = tab;
   setStatus(stTxt, stCor);
 }
@@ -423,6 +455,7 @@ document.addEventListener("click", async e => {
   if (d.tog) { readForm(); const [k, c] = d.tog.split("|"); setF(k, c, fval(k, c) ? 0 : 1); return render(); }
   if (d.st) { readForm(); const [k, c, n] = d.st.split("|"); setF(k, c, Math.max(0, fval(k, c) + Number(n))); return render(); }
   if (d.lancar !== undefined) return lancar();
+  if (d.semfoto !== undefined) { AVATAR = ""; render(); if (await run(sb.rpc("tg_salvar_avatar", { p_avatar: "" }))) toast("✓ Usando a foto padrão"); return; }
   if (d.ssub) { ui.setSub = d.ssub; render(); window.scrollTo(0, 0); return; }
   if (d.envset) { const [id, s] = d.envset.split("|"); ui.envio[id] = ui.envio[id] === s ? "" : s; return render(); }
   if (d.enviar) {
@@ -479,6 +512,7 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches && e.target.matches(".efin,#fObs")) e.target.blur(); });
 document.addEventListener("change", e => {
+  if (e.target.id === "fotoInput") return trocarFoto(e.target.files[0]);
   if (e.target.id === "rDe" || e.target.id === "rAte") { readForm(); render(); }
   if (e.target.id === "fData" || e.target.id === "fObs") readForm();
 });
@@ -513,7 +547,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "12";
+const VERSAO = "13";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;

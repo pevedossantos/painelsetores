@@ -19,6 +19,8 @@ create table if not exists public.tg_dono (
   criado_em timestamptz not null default now()
 );
 
+alter table public.tg_dono add column if not exists avatar text not null default '';
+
 -- Critérios de pontuação
 create table if not exists public.tg_criterios (
   id      text primary key,
@@ -99,6 +101,19 @@ begin
   end if;
   return 'negado';
 end $$;
+
+-- Foto de perfil do TEN-GEN (imagem pequena, já reduzida pelo painel; vazio = foto padrão)
+create or replace function public.tg_salvar_avatar(p_avatar text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.tg_sou_dono() then raise exception 'Sem acesso.'; end if;
+  p_avatar := coalesce(p_avatar, '');
+  if length(p_avatar) > 400000 then raise exception 'Imagem grande demais.'; end if;
+  if p_avatar <> '' and p_avatar not like 'data:image/%' then raise exception 'Imagem inválida.'; end if;
+  update public.tg_dono set avatar = p_avatar where user_id = auth.uid();
+end $$;
+revoke all on function public.tg_salvar_avatar(text) from public, anon;
+grant execute on function public.tg_salvar_avatar(text) to authenticated;
 
 revoke all on function public.tg_acesso() from public, anon;
 grant execute on function public.tg_acesso() to authenticated;

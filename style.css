@@ -162,3 +162,12 @@ input[type=search]{-webkit-appearance:none;appearance:none}
 
 /* Logo do Tenente General na tela de entrada */
 .logo-login{display:block;width:min(78vw,320px);height:auto;margin:6px auto 18px;border-radius:22px;box-shadow:0 10px 40px #000a}
+
+/* Perfil */
+.hperfil{display:flex;align-items:center;gap:14px;flex:1;min-width:0;background:none;border:0;padding:0;margin:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.hperfil:active{transform:none;opacity:.8}
+.perfil{text-align:center}
+.avatar.grande{width:120px;height:120px;margin:4px auto 0;border-width:3px}
+.pstats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.pstats div{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.pstats b{display:block;font-size:22px;color:var(--acc2)}.pstats span{font-size:12px;color:var(--mut)}
