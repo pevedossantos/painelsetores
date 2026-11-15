@@ -1,8 +1,8 @@
 // Deixa o painel abrir rápido e funcionar como app.
 // Sempre tenta a versão mais nova da internet; usa a cópia salva só se estiver sem sinal.
 // Os dados (Supabase) nunca passam pelo cache.
-const CACHE = "tg-setores-v2";
-const ARQUIVOS = ["./", "index.html", "style.css", "app.js", "config.js", "avatar.jpg", "icone-180.png", "manifest.webmanifest"];
+const CACHE = "tg-setores-v3";
+const ARQUIVOS = ["./", "index.html", "style.css?v=3", "app.js?v=3", "config.js?v=3", "avatar.jpg", "icone-180.png", "manifest.webmanifest"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARQUIVOS)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
