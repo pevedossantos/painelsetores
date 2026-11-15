@@ -1,7 +1,7 @@
 // Deixa o painel abrir rápido e funcionar como app.
 // Sempre busca a versão mais nova na internet (sem cópia guardada do navegador);
 // usa a cópia salva só se estiver sem sinal. Os dados (Supabase) nunca passam por aqui.
-const CACHE = "tg-setores-v15";
+const CACHE = "tg-setores-v16";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
