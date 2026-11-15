@@ -55,7 +55,7 @@ async function carregar() {
   await carregarNpm();
 }
 async function carregarNpm() {
-  const { data, error } = await sb.from("npm_efetivos").select("id,qra,dc,nivel,obs,setor_destino,setorizado_em,atualizado_em").order("atualizado_em").range(0, 4999);
+  const { data, error } = await sb.from("npm_efetivos").select("*").order("atualizado_em").range(0, 4999);
   if (error) { npmOk = false; S.npm = []; return; }
   npmOk = true; S.npm = data;
 }
@@ -262,7 +262,7 @@ function vSetorizar(pend) {
   if (!pend.length) h += `<div class="empty-msg">Nenhum efetivo aguardando.<br><span class="sub">Quando o NPM marcar alguém como <b>Setorizar</b>, ele aparece aqui.</span></div>`;
   pend.slice().sort((a, b) => String(a.atualizado_em).localeCompare(String(b.atualizado_em))).forEach(x => {
     const sel = ui.envio[x.id] || "";
-    h += `<div class="npmcard"><div class="cmdhead"><div style="min-width:0"><b>${esc(x.qra)}</b>${x.dc ? `<div class="sub">DC: ${esc(x.dc)}</div>` : ""}</div><span class="tag">NPM · ${fmtDH(x.atualizado_em)}</span></div>
+    h += `<div class="npmcard"><div class="cmdhead"><div style="min-width:0"><b>${esc(x.qra)}</b><div class="sub">${[x.dc ? "DC: " + esc(x.dc) : "", x.data_entrada ? "Entrada " + fmtD(String(x.data_entrada).slice(0, 10)) : "", x.recrutado_por ? "Recrutado por " + esc(x.recrutado_por) : ""].filter(Boolean).join(" · ")}</div></div><span class="tag">NPM · ${fmtDH(x.atualizado_em)}</span></div>
     ${x.obs ? `<div class="sub" style="margin-bottom:8px">${esc(x.obs)}</div>` : ""}
     <label>Enviar para o setor</label>${chips(SETORES.map(s => [x.id + "|" + s, s]), sel ? x.id + "|" + sel : "", "envset", "big")}
     <button class="btn" data-enviar="${x.id}" ${sel ? "" : "disabled"}>${sel ? "Enviar para o Setor " + esc(sel) : "Escolha o setor"}</button></div>`;
@@ -513,7 +513,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "10";
+const VERSAO = "11";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;

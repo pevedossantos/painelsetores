@@ -146,15 +146,29 @@ create table if not exists public.npm_efetivos (
 );
 create index if not exists npm_efetivos_nivel_idx on public.npm_efetivos (nivel, setor_destino);
 
--- Guarda quando o nível muda (para mostrar "marcado em ...")
+alter table public.npm_efetivos add column if not exists data_entrada  date not null default current_date;
+alter table public.npm_efetivos add column if not exists recrutado_por text not null default '';
+alter table public.npm_efetivos add column if not exists criado_por    uuid;
+
+-- Proteções automáticas (igual ao script do painel do NPM):
+-- marca quando o nível muda e impede que alguém além do TEN-GEN mude o setor de destino.
 create or replace function public.npm_marca_atualizacao() returns trigger
-language plpgsql as $$
+language plpgsql security definer set search_path = public as $$
 begin
+  if tg_op = 'INSERT' then
+    new.criado_por := auth.uid();
+    new.setor_destino := null; new.setorizado_em := null;
+    new.atualizado_em := now();
+    return new;
+  end if;
+  if not public.tg_sou_dono() then
+    new.setor_destino := old.setor_destino; new.setorizado_em := old.setorizado_em;
+  end if;
   if new.nivel is distinct from old.nivel then new.atualizado_em := now(); end if;
   return new;
 end $$;
 drop trigger if exists npm_efetivos_atualizado on public.npm_efetivos;
-create trigger npm_efetivos_atualizado before update on public.npm_efetivos
+create trigger npm_efetivos_atualizado before insert or update on public.npm_efetivos
   for each row execute function public.npm_marca_atualizacao();
 
 -- TEN-GEN envia (ou desfaz o envio de) um efetivo marcado como "setorizar"
@@ -181,4 +195,4 @@ drop policy if exists npm_tg_ler on public.npm_efetivos;
 create policy npm_tg_ler on public.npm_efetivos for select to authenticated using (public.tg_sou_dono());
 grant select on public.npm_efetivos to authenticated;
 revoke all on public.npm_efetivos from anon;
--- (As permissões do pessoal do NPM serão adicionadas junto com o painel do NPM.)
+-- (As permissões da equipe do NPM ficam no script do painel do NPM.)
