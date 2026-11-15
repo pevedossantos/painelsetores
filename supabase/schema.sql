@@ -125,3 +125,60 @@ end $$;
 grant select, insert, update, delete on public.tg_criterios, public.tg_comandos, public.tg_lancamentos, public.tg_premios to authenticated;
 grant select on public.tg_dono to authenticated;
 revoke all on public.tg_dono, public.tg_criterios, public.tg_comandos, public.tg_lancamentos, public.tg_premios from anon;
+
+-- =====================================================================
+--  SETORIZAÇÃO · ligação com o painel do NPM
+--  O painel do NPM (projeto separado, mesmo Supabase) cadastra os efetivos
+--  em treinamento e marca o nível: iniciante, avançado ou setorizar.
+--  Quem está como "setorizar" aparece na aba Setorização do TEN-GEN,
+--  que escolhe o setor de destino. Nada aqui altera o rpcontrol.
+-- =====================================================================
+create table if not exists public.npm_efetivos (
+  id             uuid primary key default gen_random_uuid(),
+  qra            text not null check (length(qra) between 1 and 60),
+  dc             text not null default '',
+  nivel          text not null default 'iniciante' check (nivel in ('iniciante','avancado','setorizar')),
+  obs            text not null default '',
+  setor_destino  text check (setor_destino in ('Sul','Norte','Centro','Leste')),
+  setorizado_em  timestamptz,
+  criado_em      timestamptz not null default now(),
+  atualizado_em  timestamptz not null default now()
+);
+create index if not exists npm_efetivos_nivel_idx on public.npm_efetivos (nivel, setor_destino);
+
+-- Guarda quando o nível muda (para mostrar "marcado em ...")
+create or replace function public.npm_marca_atualizacao() returns trigger
+language plpgsql as $$
+begin
+  if new.nivel is distinct from old.nivel then new.atualizado_em := now(); end if;
+  return new;
+end $$;
+drop trigger if exists npm_efetivos_atualizado on public.npm_efetivos;
+create trigger npm_efetivos_atualizado before update on public.npm_efetivos
+  for each row execute function public.npm_marca_atualizacao();
+
+-- TEN-GEN envia (ou desfaz o envio de) um efetivo marcado como "setorizar"
+create or replace function public.tg_setorizar(p_id uuid, p_setor text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v npm_efetivos;
+begin
+  if not public.tg_sou_dono() then raise exception 'Sem acesso.'; end if;
+  select * into v from npm_efetivos where id = p_id for update;
+  if not found then raise exception 'Efetivo não encontrado.'; end if;
+  if p_setor is null then
+    update npm_efetivos set setor_destino = null, setorizado_em = null where id = p_id;
+    return;
+  end if;
+  if p_setor not in ('Sul','Norte','Centro','Leste') then raise exception 'Setor inválido.'; end if;
+  if v.nivel <> 'setorizar' then raise exception 'Este efetivo não está marcado para setorizar.'; end if;
+  update npm_efetivos set setor_destino = p_setor, setorizado_em = now() where id = p_id;
+end $$;
+revoke all on function public.tg_setorizar(uuid, text) from public, anon;
+grant execute on function public.tg_setorizar(uuid, text) to authenticated;
+
+alter table public.npm_efetivos enable row level security;
+drop policy if exists npm_tg_ler on public.npm_efetivos;
+create policy npm_tg_ler on public.npm_efetivos for select to authenticated using (public.tg_sou_dono());
+grant select on public.npm_efetivos to authenticated;
+revoke all on public.npm_efetivos from anon;
+-- (As permissões do pessoal do NPM serão adicionadas junto com o painel do NPM.)

@@ -21,6 +21,11 @@ Usa o **mesmo Supabase do rpcontrol**, com tabelas próprias (`tg_…`), e roda 
 1. No painel antigo: **Ajustes → Copiar backup**.
 2. No painel novo: **Ajustes → Importar backup** → cole → **Importar backup**.
 
+## Setorização
+- **Setorizar:** mostra os efetivos que o painel do NPM marcou como *Setorizar*. Você escolhe o setor e envia; dá para desfazer.
+- **Efetivos por setor:** lista os efetivos ativos de cada setor **lendo** o rpcontrol (nada é alterado lá).
+- A ligação com o NPM é a tabela `npm_efetivos` (criada pelo `supabase/schema.sql`). Sempre que este arquivo mudar, rode-o de novo no SQL Editor.
+
 ## Instalar como app no celular
 - **iPhone (Safari):** abra o link → botão Compartilhar → **Adicionar à Tela de Início**.
 - **Android (Chrome):** abra o link → menu ⋮ → **Instalar app** / **Adicionar à tela inicial**.

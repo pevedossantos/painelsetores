@@ -43,13 +43,33 @@ async function fetchAll(table, order) {
   return out;
 }
 
-let S = { criterios: [], comandos: [], lancamentos: [], premios: [] };
+let S = { criterios: [], comandos: [], lancamentos: [], premios: [], npm: [] };
+let npmOk = true;
+const RP = { carregado: false, carregando: false, erro: "", membros: [], setores: [] };
 async function carregar() {
   const [cr, cm, la, pr] = await Promise.all([
     fetchAll("tg_criterios", "ordem"), fetchAll("tg_comandos", "criado_em"),
     fetchAll("tg_lancamentos", "data"), fetchAll("tg_premios", "fim")
   ]);
-  S = { criterios: cr, comandos: cm.map(fromCmd), lancamentos: la.map(fromL), premios: pr.map(fromP) };
+  S = { criterios: cr, comandos: cm.map(fromCmd), lancamentos: la.map(fromL), premios: pr.map(fromP), npm: S.npm || [] };
+  await carregarNpm();
+}
+async function carregarNpm() {
+  const { data, error } = await sb.from("npm_efetivos").select("id,qra,dc,nivel,obs,setor_destino,setorizado_em,atualizado_em").order("atualizado_em").range(0, 4999);
+  if (error) { npmOk = false; S.npm = []; return; }
+  npmOk = true; S.npm = data;
+}
+async function carregarRp() {
+  RP.carregando = true; RP.erro = "";
+  try {
+    const [st, mb] = await Promise.all([
+      sb.from("setores").select("id,nome,ordem").order("ordem"),
+      sb.from("membros").select("id,nome,discord,patente,setor_id,funcao").eq("status", "ativo").order("nome").range(0, 4999)
+    ]);
+    if (st.error) throw st.error; if (mb.error) throw mb.error;
+    RP.setores = st.data; RP.membros = mb.data; RP.carregado = true;
+  } catch (e) { RP.erro = e.message || String(e); }
+  RP.carregando = false;
 }
 
 /* ===== Status / toast ===== */
@@ -103,19 +123,22 @@ function ciclo() {
 }
 
 /* ===== Estado de tela ===== */
-const TABS = [["ranking", "Ranking"], ["lancar", "Lançar"], ["ajustes", "Ajustes"]];
+const TABS = [["ranking", "Ranking"], ["lancar", "Lançar"], ["setorizacao", "Setorização"], ["ajustes", "Ajustes"]];
+const PAT_SIGLA = ["REC", "SLD", "SGT", "1 SGT", "SGT MOR", "TEN", "CAP", "MAJ", "CEL", "MAJ GEN", "TEN GEN", "CEL GEN", "GEN ADJ", "FEDERAL"];
+const FUN_SIGLA = { "1CMD": "1 CMD", "2CMD": "2 CMD", "1AUX": "1 AUX", "2AUX": "2 AUX" };
 const SUBS = [["ranking", "Ranking"], ["premios", "Prêmios"], ["historico", "Histórico"]];
 const ICON = {
   ranking: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/>',
   lancar: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
   premios: '<circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/>',
   historico: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+  setorizacao: '<circle cx="9" cy="7" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M15 12h7M19 9l3 3-3 3"/>',
   ajustes: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'
 };
 let tab = (location.hash || "").slice(1); let sub0 = "ranking";
 if (tab === "premios" || tab === "historico") { sub0 = tab; tab = "ranking"; }
 if (!TABS.some(t => t[0] === tab)) tab = "ranking";
-const ui = { sub: sub0, fase: "carregando", periodo: "7d", de: "", ate: "", setorF: "", setorL: SETORES[0], data: today(), obs: "", form: {}, histSetor: "", ganhador: null, erroLogin: "" };
+const ui = { setSub: "setorizar", envio: {}, busca: "", rpSetor: "", abertos: {}, sub: sub0, fase: "carregando", periodo: "7d", de: "", ate: "", setorF: "", setorL: SETORES[0], data: today(), obs: "", form: {}, histSetor: "", ganhador: null, erroLogin: "" };
 function go(t) { if (t === tab) { window.scrollTo({ top: 0, behavior: "smooth" }); return; } tab = t; try { history.replaceState(null, "", "#" + t); } catch (e) { } render(); window.scrollTo(0, 0); }
 window.addEventListener("hashchange", () => { let t = location.hash.slice(1); if (t === "premios" || t === "historico") { ui.sub = t; t = "ranking"; } if (TABS.some(x => x[0] === t)) { tab = t; render(); } });
 
@@ -226,6 +249,62 @@ function vHistorico() {
   return h + `</div>`;
 }
 
+/* ===== Setorização ===== */
+const fmtDH = s => { if (!s) return ""; const d = new Date(s); return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); };
+function vSetorizacao() {
+  const pend = S.npm.filter(x => x.nivel === "setorizar" && !x.setor_destino);
+  const seg = `<div class="seg"><button class="${ui.setSub === "setorizar" ? "on" : ""}" data-ssub="setorizar">Setorizar${pend.length ? ` <span class="cnt">${pend.length}</span>` : ""}</button><button class="${ui.setSub === "efetivos" ? "on" : ""}" data-ssub="efetivos">Efetivos por setor</button></div>`;
+  return seg + (ui.setSub === "efetivos" ? vEfetivos() : vSetorizar(pend));
+}
+function vSetorizar(pend) {
+  if (!npmOk) return `<div class="card"><div class="empty-msg">A ligação com o NPM ainda não foi criada no banco.<br>Rode de novo o <b>supabase/schema.sql</b> no Supabase.</div></div>`;
+  let h = `<div class="card"><h2>Aguardando setorização (${pend.length})</h2>`;
+  if (!pend.length) h += `<div class="empty-msg">Nenhum efetivo aguardando.<br><span class="sub">Quando o NPM marcar alguém como <b>Setorizar</b>, ele aparece aqui.</span></div>`;
+  pend.slice().sort((a, b) => String(a.atualizado_em).localeCompare(String(b.atualizado_em))).forEach(x => {
+    const sel = ui.envio[x.id] || "";
+    h += `<div class="npmcard"><div class="cmdhead"><div style="min-width:0"><b>${esc(x.qra)}</b>${x.dc ? `<div class="sub">DC: ${esc(x.dc)}</div>` : ""}</div><span class="tag">NPM · ${fmtDH(x.atualizado_em)}</span></div>
+    ${x.obs ? `<div class="sub" style="margin-bottom:8px">${esc(x.obs)}</div>` : ""}
+    <label>Enviar para o setor</label>${chips(SETORES.map(s => [x.id + "|" + s, s]), sel ? x.id + "|" + sel : "", "envset", "big")}
+    <button class="btn" data-enviar="${x.id}" ${sel ? "" : "disabled"}>${sel ? "Enviar para o Setor " + esc(sel) : "Escolha o setor"}</button></div>`;
+  });
+  h += `</div>`;
+  const env = S.npm.filter(x => x.setor_destino).sort((a, b) => String(b.setorizado_em).localeCompare(String(a.setorizado_em)));
+  h += `<div class="card"><h2>Enviados (${env.length})</h2>`;
+  if (!env.length) h += `<div class="empty-msg">Ninguém enviado ainda.</div>`;
+  env.slice(0, 50).forEach(x => { h += `<div class="hist"><div class="who"><b>${esc(x.qra)}</b><span>→ Setor ${esc(x.setor_destino)} · ${fmtDH(x.setorizado_em)}</span></div><button class="btn sm sec" data-desfazer="${x.id}">Desfazer</button></div>`; });
+  return h + `</div>`;
+}
+function vEfetivos() {
+  if (!RP.carregado) {
+    if (!RP.carregando && !RP.erro) carregarRp().then(render);
+    if (RP.erro) return `<div class="card"><div class="empty-msg">Não consegui ler os efetivos do rpcontrol.<br><span class="sub">${esc(RP.erro)}</span></div><button class="btn sec" data-rprecarregar>Tentar de novo</button></div>`;
+    return `<div class="card"><div class="empty-msg">Carregando efetivos do rpcontrol…</div></div>`;
+  }
+  const grupos = RP.setores.map(s => ({ id: s.id, nome: "Setor " + s.nome, lista: [] }));
+  const semSetor = { id: "_sem", nome: "Sem setor", lista: [] };
+  const porId = {}; grupos.forEach(g => porId[g.id] = g);
+  const q = slugUsuario(ui.busca).replace(/\./g, " ");
+  RP.membros.forEach(m => { if (q && !slugUsuario(m.nome).replace(/\./g, " ").includes(q) && !String(m.discord || "").toLowerCase().includes(q)) return; (porId[m.setor_id] || semSetor).lista.push(m); });
+  if (semSetor.lista.length) grupos.push(semSetor);
+  const ordemF = { "1CMD": 0, "2CMD": 1, "1AUX": 2, "2AUX": 3 };
+  const total = grupos.reduce((t, g) => t + g.lista.length, 0);
+  let h = `<div class="card"><input id="rpBusca" type="search" placeholder="Buscar efetivo por nome ou DC" value="${esc(ui.busca)}" enterkeyhint="search" autocapitalize="none" autocorrect="off">
+  <div class="resumo">${grupos.map(g => `<button class="rs ${ui.rpSetor === g.id ? "on" : ""}" data-rpset="${g.id}"><b>${g.lista.length}</b><span>${esc(g.nome.replace("Setor ", ""))}</span></button>`).join("")}</div>
+  <div class="sub" style="text-align:center;margin-top:8px">${total} efetivo(s) ativos${q ? " encontrados" : ""} · dados do rpcontrol <button class="lnk" data-rprecarregar>atualizar</button></div></div>`;
+  grupos.filter(g => !ui.rpSetor || g.id === ui.rpSetor).forEach(g => {
+    if (q && !g.lista.length) return;
+    const aberto = ui.abertos[g.id] || !!q || !!ui.rpSetor;
+    g.lista.sort((a, b) => (ordemF[a.funcao] ?? 9) - (ordemF[b.funcao] ?? 9) || b.patente - a.patente || a.nome.localeCompare(b.nome));
+    h += `<div class="card"><button class="grp" data-grp="${g.id}"><span>${esc(g.nome)}</span><span class="grp-n">${g.lista.length}<i class="chev ${aberto ? "up" : ""}"></i></span></button>`;
+    if (aberto) {
+      if (!g.lista.length) h += `<div class="empty-msg">Nenhum efetivo.</div>`;
+      g.lista.forEach(m => { h += `<div class="ef"><span class="pat">${PAT_SIGLA[m.patente] || ""}</span><div class="who"><b>${esc(m.nome)}</b>${m.discord ? `<span>${esc(m.discord)}</span>` : ""}</div>${m.funcao ? `<span class="fun">${FUN_SIGLA[m.funcao]}</span>` : ""}</div>`; });
+    }
+    h += `</div>`;
+  });
+  return h;
+}
+
 function vAjustes() {
   let h = `<div class="card"><h2>Pontos por critério</h2>`;
   S.criterios.forEach(c => { h += `<div class="crit"><div>${esc(c.nome)}${c.tipo === "efetivos" ? ' <span class="sub">(por efetivo)</span>' : ""} <span class="sub">· ${c.escopo === "setor" ? "setor" : "comando"}</span></div><input type="number" inputmode="numeric" data-cpts="${esc(c.id)}" value="${c.pontos}"></div>`; });
@@ -245,7 +324,7 @@ function render() {
   if (ui.fase !== "pronto") { root.innerHTML = `<div class="loading">Carregando…</div>`; return; }
   const st = document.getElementById("status"); const stTxt = st ? st.textContent : "✓ Conectado", stCor = st ? st.style.color : "#5fbf7a";
   const y = window.scrollY;
-  root.innerHTML = header() + `<main id="app" class="${tab === "lancar" ? "com-barra" : ""}">${{ ranking: vRanking, lancar: vLancar, ajustes: vAjustes }[tab]()}</main>`;
+  root.innerHTML = header() + `<main id="app" class="${tab === "lancar" ? "com-barra" : ""}">${{ ranking: vRanking, lancar: vLancar, setorizacao: vSetorizacao, ajustes: vAjustes }[tab]()}</main>`;
   if (render.mesmaAba === tab) window.scrollTo(0, y); render.mesmaAba = tab;
   setStatus(stTxt, stCor);
 }
@@ -345,6 +424,24 @@ document.addEventListener("click", async e => {
   if (d.tog) { readForm(); const [k, c] = d.tog.split("|"); setF(k, c, fval(k, c) ? 0 : 1); return render(); }
   if (d.st) { readForm(); const [k, c, n] = d.st.split("|"); setF(k, c, Math.max(0, fval(k, c) + Number(n))); return render(); }
   if (d.lancar !== undefined) return lancar();
+  if (d.ssub) { ui.setSub = d.ssub; render(); window.scrollTo(0, 0); return; }
+  if (d.envset) { const [id, s] = d.envset.split("|"); ui.envio[id] = ui.envio[id] === s ? "" : s; return render(); }
+  if (d.enviar) {
+    const id = d.enviar, s = ui.envio[id], x = S.npm.find(n => n.id === id); if (!s || !x) return;
+    return confirmBox(`Enviar <b>${esc(x.qra)}</b> para o <b>Setor ${esc(s)}</b>?`, async () => {
+      x.setor_destino = s; x.setorizado_em = new Date().toISOString(); delete ui.envio[id]; render();
+      if (await run(sb.rpc("tg_setorizar", { p_id: id, p_setor: s }))) toast(`✓ ${x.qra} enviado para o Setor ${s}`);
+    });
+  }
+  if (d.desfazer) {
+    const x = S.npm.find(n => n.id === d.desfazer); if (!x) return;
+    return confirmBox(`Desfazer o envio de <b>${esc(x.qra)}</b>? Ele volta para a lista de aguardando.`, async () => {
+      x.setor_destino = null; x.setorizado_em = null; render(); await run(sb.rpc("tg_setorizar", { p_id: x.id, p_setor: null }));
+    });
+  }
+  if (d.rpset !== undefined) { ui.rpSetor = ui.rpSetor === d.rpset ? "" : d.rpset; return render(); }
+  if (d.grp) { ui.abertos[d.grp] = !ui.abertos[d.grp]; return render(); }
+  if (d.rprecarregar !== undefined) { RP.carregado = false; RP.erro = ""; render(); await carregarRp(); return render(); }
   if (d.gan) { ui.ganhador = d.gan; return render(); }
   if (d.premiar !== undefined) return premiar();
   if (d.dell) return confirmBox("Apagar este lançamento?", async () => { S.lancamentos = S.lancamentos.filter(l => l.id !== d.dell); render(); await run(sb.from("tg_lancamentos").delete().eq("id", d.dell)); });
@@ -374,6 +471,7 @@ document.addEventListener("click", async e => {
 const ptsTimers = {};
 document.addEventListener("input", e => {
   const d = e.target.dataset;
+  if (e.target.id === "rpBusca") { ui.busca = e.target.value; clearTimeout(ui._bt); ui._bt = setTimeout(() => { const pos = e.target.selectionStart; render(); const el = document.getElementById("rpBusca"); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (er) { } } }, 250); return; }
   if (d.efet) { const [k, c] = d.efet.split("|"); setF(k, c, Math.max(0, parseInt(e.target.value) || 0)); updTot(k); }
   if (d.cpts) {
     const c = critById(d.cpts); if (!c) return; c.pontos = Number(e.target.value) || 0;
@@ -416,7 +514,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "8";
+const VERSAO = "9";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;
