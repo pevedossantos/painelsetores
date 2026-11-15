@@ -171,3 +171,4 @@ input[type=search]{-webkit-appearance:none;appearance:none}
 .pstats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .pstats div{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
 .pstats b{display:block;font-size:22px;color:var(--acc2)}.pstats span{font-size:12px;color:var(--mut)}
+.pat.npm{color:#18210f;background:#a9c46a;border-color:#a9c46a}

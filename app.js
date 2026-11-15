@@ -288,12 +288,21 @@ function vEfetivos() {
   const grupos = RP.setores.filter(s => SETORES.some(n => n.toLowerCase() === String(s.nome).trim().toLowerCase())).map(s => ({ id: s.id, nome: "Setor " + s.nome, lista: [] }));
   const porId = {}; grupos.forEach(g => porId[g.id] = g);
   const q = slugUsuario(ui.busca).replace(/\./g, " ");
-  RP.membros.forEach(m => { if (q && !slugUsuario(m.nome).replace(/\./g, " ").includes(q) && !String(m.discord || "").toLowerCase().includes(q)) return; const g = porId[m.setor_id]; if (g) g.lista.push(m); });
+  const passa = (nome, dc) => !q || slugUsuario(nome).replace(/\./g, " ").includes(q) || String(dc || "").toLowerCase().includes(q);
+  RP.membros.forEach(m => { if (!passa(m.nome, m.discord)) return; const g = porId[m.setor_id]; if (g) g.lista.push(m); });
+  // Efetivos que você setorizou pelo NPM entram no setor de destino (sem mexer no rpcontrol).
+  // Se a pessoa já estiver no rpcontrol nesse mesmo setor, não conta em dobro.
+  const porNome = {}; grupos.forEach(g => porNome[g.nome.replace("Setor ", "").trim().toLowerCase()] = g);
+  S.npm.filter(x => x.setor_destino).forEach(x => {
+    const g = porNome[String(x.setor_destino).toLowerCase()]; if (!g || !passa(x.qra, x.dc)) return;
+    const k = slugUsuario(x.qra); if (RP.membros.some(m => m.setor_id === g.id && slugUsuario(m.nome) === k)) return;
+    g.lista.push({ id: "npm-" + x.id, nome: x.qra, discord: x.dc, patente: -1, funcao: null, npm: true, quando: x.setorizado_em });
+  });
   const ordemF = { "1CMD": 0, "2CMD": 1, "1AUX": 2, "2AUX": 3 };
   const total = grupos.reduce((t, g) => t + g.lista.length, 0);
   let h = `<div class="card"><input id="rpBusca" type="search" placeholder="Buscar efetivo por nome ou DC" value="${esc(ui.busca)}" enterkeyhint="search" autocapitalize="none" autocorrect="off">
   <div class="resumo">${grupos.map(g => `<button class="rs ${ui.rpSetor === g.id ? "on" : ""}" data-rpset="${g.id}"><b>${g.lista.length}</b><span>${esc(g.nome.replace("Setor ", ""))}</span></button>`).join("")}</div>
-  <div class="sub" style="text-align:center;margin-top:8px">${total} efetivo(s) ativos${q ? " encontrados" : ""} · dados do rpcontrol <button class="lnk" data-rprecarregar>atualizar</button></div></div>`;
+  <div class="sub" style="text-align:center;margin-top:8px">${total} efetivo(s)${q ? " encontrados" : ""} · rpcontrol + setorizados pelo NPM <button class="lnk" data-rprecarregar>atualizar</button></div></div>`;
   grupos.filter(g => !ui.rpSetor || g.id === ui.rpSetor).forEach(g => {
     if (q && !g.lista.length) return;
     const aberto = ui.abertos[g.id] || !!q || !!ui.rpSetor;
@@ -301,7 +310,7 @@ function vEfetivos() {
     h += `<div class="card"><button class="grp" data-grp="${g.id}"><span>${esc(g.nome)}</span><span class="grp-n">${g.lista.length}<i class="chev ${aberto ? "up" : ""}"></i></span></button>`;
     if (aberto) {
       if (!g.lista.length) h += `<div class="empty-msg">Nenhum efetivo.</div>`;
-      g.lista.forEach(m => { h += `<div class="ef"><span class="pat">${PAT_SIGLA[m.patente] || ""}</span><div class="who"><b>${esc(m.nome)}</b>${m.discord ? `<span>${esc(m.discord)}</span>` : ""}</div>${m.funcao ? `<span class="fun">${FUN_SIGLA[m.funcao]}</span>` : ""}</div>`; });
+      g.lista.forEach(m => { h += `<div class="ef"><span class="pat ${m.npm ? "npm" : ""}">${m.npm ? "NPM" : (PAT_SIGLA[m.patente] || "")}</span><div class="who"><b>${esc(m.nome)}</b>${m.npm ? `<span>Setorizado pelo NPM · ${fmtDH(m.quando)}</span>` : m.discord ? `<span>${esc(m.discord)}</span>` : ""}</div>${m.funcao ? `<span class="fun">${FUN_SIGLA[m.funcao]}</span>` : ""}</div>`; });
     }
     h += `</div>`;
   });
@@ -547,7 +556,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "13";
+const VERSAO = "14";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;
