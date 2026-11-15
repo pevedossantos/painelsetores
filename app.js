@@ -280,12 +280,11 @@ function vEfetivos() {
     if (RP.erro) return `<div class="card"><div class="empty-msg">Não consegui ler os efetivos do rpcontrol.<br><span class="sub">${esc(RP.erro)}</span></div><button class="btn sec" data-rprecarregar>Tentar de novo</button></div>`;
     return `<div class="card"><div class="empty-msg">Carregando efetivos do rpcontrol…</div></div>`;
   }
-  const grupos = RP.setores.map(s => ({ id: s.id, nome: "Setor " + s.nome, lista: [] }));
-  const semSetor = { id: "_sem", nome: "Sem setor", lista: [] };
+  // Só os setores avaliados (Sul, Norte, Centro, Leste); Especiais, NPM e sem setor ficam de fora.
+  const grupos = RP.setores.filter(s => SETORES.some(n => n.toLowerCase() === String(s.nome).trim().toLowerCase())).map(s => ({ id: s.id, nome: "Setor " + s.nome, lista: [] }));
   const porId = {}; grupos.forEach(g => porId[g.id] = g);
   const q = slugUsuario(ui.busca).replace(/\./g, " ");
-  RP.membros.forEach(m => { if (q && !slugUsuario(m.nome).replace(/\./g, " ").includes(q) && !String(m.discord || "").toLowerCase().includes(q)) return; (porId[m.setor_id] || semSetor).lista.push(m); });
-  if (semSetor.lista.length) grupos.push(semSetor);
+  RP.membros.forEach(m => { if (q && !slugUsuario(m.nome).replace(/\./g, " ").includes(q) && !String(m.discord || "").toLowerCase().includes(q)) return; const g = porId[m.setor_id]; if (g) g.lista.push(m); });
   const ordemF = { "1CMD": 0, "2CMD": 1, "1AUX": 2, "2AUX": 3 };
   const total = grupos.reduce((t, g) => t + g.lista.length, 0);
   let h = `<div class="card"><input id="rpBusca" type="search" placeholder="Buscar efetivo por nome ou DC" value="${esc(ui.busca)}" enterkeyhint="search" autocapitalize="none" autocorrect="off">
@@ -514,7 +513,7 @@ document.addEventListener("visibilitychange", async () => {
   const aviso = document.createElement("div"); aviso.className = "carregando-dados"; aviso.textContent = "Atualizando…"; document.body.appendChild(aviso);
   try { await carregar(); render(); } catch (e) { } aviso.remove();
 });
-const VERSAO = "9";
+const VERSAO = "10";
 if ("serviceWorker" in navigator) {
   // Quando uma versão nova do painel é instalada, recarrega uma vez sozinho.
   let recarregou = false; const tinhaControle = !!navigator.serviceWorker.controller;
